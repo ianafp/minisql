@@ -48,26 +48,34 @@ TEST(BufferPoolManagerTest, BinaryDataTest) {
   for (size_t i = buffer_pool_size; i < buffer_pool_size * 2; ++i) {
     EXPECT_EQ(nullptr, bpm->NewPage(page_id_temp));
   }
-
+  // assert(false);
   // Scenario: After unpinning pages {0, 1, 2, 3, 4} we should be able to create 5 new pages
   for (int i = 0; i < 5; ++i) {
     EXPECT_EQ(true, bpm->UnpinPage(i, true));
     EXPECT_TRUE(bpm->FlushPage(i));
   }
+  // assert(false);
   for (int i = 0; i < 5; ++i) {
+    // assert(i!=1);
     EXPECT_NE(nullptr, bpm->NewPage(page_id_temp));
+    // assert(i!=0);
     EXPECT_EQ(buffer_pool_size + i, page_id_temp);
     bpm->UnpinPage(page_id_temp, false);
   }
+  // assert(false);
   // Scenario: We should be able to fetch the data we wrote a while ago.
   page0 = bpm->FetchPage(0);
+  // assert(false);
   EXPECT_EQ(0, memcmp(page0->GetData(), random_binary_data, PAGE_SIZE));
+  // assert(false);
   EXPECT_EQ(true, bpm->UnpinPage(0, true));
-
+  // assert(false);
   // Shutdown the disk manager and remove the temporary file we created.
   disk_manager->Close();
+  // assert(false);
   remove(db_name.c_str());
-
+  // assert(false);
   delete bpm;
+  // assert(false);
   delete disk_manager;
 }
