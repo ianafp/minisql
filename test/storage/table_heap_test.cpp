@@ -35,8 +35,10 @@ TEST(TableHeapTest, TableHeapSampleTest) {
             Field(TypeId::kTypeChar, const_cast<char *>(characters), len, true),
             Field(TypeId::kTypeFloat, RandomUtils::RandomFloat(-999.f, 999.f))
     };
+    // assert(false);
     Row row(*fields);
     table_heap->InsertTuple(row, nullptr);
+    // assert(false);
     row_values[row.GetRowId().Get()] = fields;
     delete[] characters;
   }

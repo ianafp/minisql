@@ -1,6 +1,6 @@
 #include <stdexcept>
 #include <sys/stat.h>
-// #define ENABLE_BPM_DEBUG
+#define ENABLE_BPM_DEBUG
 #include "glog/logging.h"
 #include "page/bitmap_page.h"
 #include "storage/disk_manager.h"
