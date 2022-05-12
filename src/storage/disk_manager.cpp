@@ -53,6 +53,7 @@ page_id_t DiskManager::AllocatePage() {
 #endif
       return INVALID_PAGE_ID;
     }
+    meta->num_allocated_pages_++;
     uint32_t i;
     // max pages of an extent
     uint32_t extent_capacity = BitmapPage<PAGE_SIZE>::GetMaxSupportedSize();
@@ -118,6 +119,7 @@ void DiskManager::DeAllocatePage(page_id_t logical_page_id) {
     // generate meta
     DiskFileMetaPage* meta = reinterpret_cast<DiskFileMetaPage*> (meta_data_);
     if(logical_page_id>=MAX_VALID_PAGE_ID) return ;
+    meta->num_allocated_pages_--;
     uint32_t extent_capacity = BitmapPage<PAGE_SIZE>::GetMaxSupportedSize();
     uint32_t extent_id = logical_page_id / extent_capacity;
     char bitmap_content[PAGE_SIZE];
