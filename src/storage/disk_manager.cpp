@@ -1,6 +1,6 @@
 #include <stdexcept>
 #include <sys/stat.h>
-#define ENABLE_BPM_DEBUG
+// #define ENABLE_BPM_DEBUG
 #include "glog/logging.h"
 #include "page/bitmap_page.h"
 #include "storage/disk_manager.h"
@@ -32,6 +32,7 @@ void DiskManager::Close() {
 
 void DiskManager::ReadPage(page_id_t logical_page_id, char *page_data) {
   ASSERT(logical_page_id >= 0, "Invalid page id.");
+  // assert(false);
   ReadPhysicalPage(MapPageId(logical_page_id), page_data);
 }
 
@@ -145,6 +146,7 @@ bool DiskManager::IsPageFree(page_id_t logical_page_id) {
 }
 
 page_id_t DiskManager::MapPageId(page_id_t logical_page_id) {
+  // assert(false);
 #ifdef ENABLE_BPM_DEBUG
       LOG(WARNING) << "in function MapPageId" << std::endl;
 #endif

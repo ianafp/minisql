@@ -1,6 +1,6 @@
 #include "storage/table_heap.h"
 #include "glog/logging.h"
-#define ENABLE_BPM_DEBUG
+// #define ENABLE_BPM_DEBUG
 bool TableHeap::InsertTuple(Row &row, Transaction *txn) {
   // assert(row.GetSerializedSize()<PAGE_SIZE);
 
@@ -9,6 +9,9 @@ bool TableHeap::InsertTuple(Row &row, Transaction *txn) {
   TablePage *table_page_ptr = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(first_page_id_));
   assert(table_page_ptr!=nullptr);
   // search an availble table page
+  if(table_page_ptr->GetPrevPageId()!=INVALID_PAGE_ID){
+    table_page_ptr->Init(temp_page_id,INVALID_PAGE_ID,log_manager_,txn);
+  }
   while (1) {
     // assert(false);
 #ifdef ENABLE_BPM_DEBUG
@@ -17,6 +20,7 @@ bool TableHeap::InsertTuple(Row &row, Transaction *txn) {
 #endif
     // try to insert
     if(table_page_ptr->InsertTuple(row,schema_,txn,lock_manager_,log_manager_)) break;
+    // assert(false);
 #ifdef ENABLE_BPM_DEBUG
       LOG(INFO) <<"insert to this page false"<<"\n";
 #endif

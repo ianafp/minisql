@@ -1,6 +1,6 @@
 #include "page/table_page.h"
 #include "glog/logging.h"
-#define ENABLE_BPM_DEBUG
+// #define ENABLE_BPM_DEBUG
 void TablePage::Init(page_id_t page_id, page_id_t prev_id, LogManager *log_mgr, Transaction *txn) {
   memcpy(GetData(), &page_id, sizeof(page_id));
   SetPrevPageId(prev_id);

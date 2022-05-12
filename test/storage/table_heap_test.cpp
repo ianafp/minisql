@@ -13,7 +13,9 @@ using Fields = std::vector<Field>;
 
 TEST(TableHeapTest, TableHeapSampleTest) {
   // init testing instance
+  // assert(false);
   DBStorageEngine engine(db_file_name);
+  // assert(false);
   SimpleMemHeap heap;
   const int row_nums = 1000;
   // create schema
@@ -22,10 +24,12 @@ TEST(TableHeapTest, TableHeapSampleTest) {
           ALLOC_COLUMN(heap)("name", TypeId::kTypeChar, 64, 1, true, false),
           ALLOC_COLUMN(heap)("account", TypeId::kTypeFloat, 2, true, false)
   };
+  // assert(false);
   auto schema = std::make_shared<Schema>(columns);
   // create rows
   std::unordered_map<int64_t, Fields *> row_values;
   TableHeap *table_heap = TableHeap::Create(engine.bpm_, schema.get(), nullptr, nullptr, nullptr, &heap);
+  // assert(false);
   for (int i = 0; i < row_nums; i++) {
     int32_t len = RandomUtils::RandomInt(0, 64);
     char *characters = new char[len];
