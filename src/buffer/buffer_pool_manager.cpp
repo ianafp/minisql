@@ -72,6 +72,7 @@ Page *BufferPoolManager::FetchPage(page_id_t page_id) {
     // register in map
     page_table_.insert(std::pair<page_id_t, frame_id_t>(page_id, victim));
     // return
+    replacer_->Pin(victim);
     return pages_ + victim;
   } else {
     replacer_->Pin(it->second);
