@@ -14,6 +14,7 @@ BPLUSTREE_TYPE::BPlusTree(index_id_t index_id, BufferPoolManager *buffer_pool_ma
           leaf_max_size_(leaf_max_size),
           internal_max_size_(internal_max_size) {
           this->root_page_id_ = INVALID_PAGE_ID;
+          this->first_page_id_ = INVALID_PAGE_ID;
 }
 
 INDEX_TEMPLATE_ARGUMENTS
@@ -79,6 +80,7 @@ bool BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
     B_PLUS_TREE_LEAF_PAGE_TYPE *root_leaf_page =
         reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE *>(buffer_pool_manager_->NewPage(this->root_page_id_));
     root_leaf_page->Init(root_page_id_);
+    this->first_page_id_ = root_page_id_;
     root_leaf_page->Insert(key,value,comparator_);
     // success
     buffer_pool_manager_->UnpinPage(this->root_page_id_);
@@ -279,6 +281,7 @@ bool BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
      // update root
     buffer_pool_manager_->DeletePage(this->root_page_id_);
     if (node->IsLeafPage()) {
+        this->first_page_id_ = INVALID_PAGE_ID;
         this->root_page_id_ = INVALID_PAGE_ID;   
     } else
       this->root_page_id_ = node->RemoveAndReturnOnlyChild();
