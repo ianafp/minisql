@@ -2,7 +2,7 @@ CMAKE_MINIMUM_REQUIRED(VERSION 3.10)
 if(POLICY CMP0042)
     cmake_policy(SET CMP0042 NEW)
 endif()
-
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
 MESSAGE(STATUS "Cmake output binray directory: ${CMAKE_BINARY_DIR}")
 
 # Project Info

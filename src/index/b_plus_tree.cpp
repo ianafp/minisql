@@ -399,7 +399,10 @@ bool BPLUSTREE_TYPE::AdjustRoot(BPlusTreePage *old_root_node) {
  */
 INDEX_TEMPLATE_ARGUMENTS
 INDEXITERATOR_TYPE BPLUSTREE_TYPE::Begin() {
-  return INDEXITERATOR_TYPE();
+  if(IsEmpty()) return INDEXITERATOR_TYPE();
+
+  B_PLUS_TREE_LEAF_PAGE_TYPE* first_leaf = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>(buffer_pool_manager_->FetchPage(this->first_page_id_));
+  return INDEXITERATOR_TYPE(0,first_leaf,buffer_pool_manager_);
 }
 
 /*
@@ -409,7 +412,23 @@ INDEXITERATOR_TYPE BPLUSTREE_TYPE::Begin() {
  */
 INDEX_TEMPLATE_ARGUMENTS
 INDEXITERATOR_TYPE BPLUSTREE_TYPE::Begin(const KeyType &key) {
-  return INDEXITERATOR_TYPE();
+  // need to find the leaf page and index in page
+  B_PLUS_TREE_INTERNAL_PAGE_TYPE* temp_internal_ptr = reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>(buffer_pool_manager_->FetchPage(root_page_id_));
+  // find leaf
+  while(!temp_internal_ptr->IsLeafPage()){
+    buffer_pool_manager_->UnpinPage(temp_internal_ptr->GetPageId());
+    int local_index = temp_internal_ptr->KeyIndex(key,comparator_);
+    temp_internal_ptr = reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>(buffer_pool_manager_->FetchPage(temp_internal_ptr->ValueAt(local_index)));
+  }
+  // find leaf
+  B_PLUS_TREE_LEAF_PAGE_TYPE* leaf_page_ = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>(temp_internal_ptr);
+  int index = leaf_page_->KeyIndex(key,comparator_);
+  if(index==leaf_page_->GetSize()){
+    return INDEXITERATOR_TYPE();
+  }else{
+    return INDEXITERATOR_TYPE(index,leaf_page_,buffer_pool_manager_);
+  }
+  
 }
 
 /*

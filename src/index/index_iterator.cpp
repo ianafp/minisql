@@ -3,9 +3,10 @@
 #include "index/index_iterator.h"
 
 INDEX_TEMPLATE_ARGUMENTS INDEXITERATOR_TYPE::IndexIterator(int index,B_PLUS_TREE_LEAF_PAGE_TYPE* leaf_page,BufferPoolManager* buffer_pool_manager):index_(index),leaf_page_(leaf_page) ,buffer_pool_manager_(buffer_pool_manager){
-  if(leaf_page_!=nullptr)
+  if(leaf_page_!=nullptr){
   val_.first = leaf_page_->KeyAt(index_);
   val_.second = leaf_page_->ValueAt(index_);
+  }
 }
 INDEX_TEMPLATE_ARGUMENTS INDEXITERATOR_TYPE::IndexIterator(IndexIterator &other){
   this->index_ = other.index_;
@@ -33,6 +34,8 @@ INDEX_TEMPLATE_ARGUMENTS INDEXITERATOR_TYPE &INDEXITERATOR_TYPE::operator++() {
       // end
       index_ = -1;
       leaf_page_ = nullptr;
+      buffer_pool_manager_ = nullptr;
+      return *this;
     }else {
       //next page
       leaf_page_ = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>(buffer_pool_manager_->FetchPage(leaf_page_->GetNextPageId()));
