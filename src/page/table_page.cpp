@@ -1,5 +1,6 @@
 #include "page/table_page.h"
-
+#include "glog/logging.h"
+// #define ENABLE_BPM_DEBUG
 void TablePage::Init(page_id_t page_id, page_id_t prev_id, LogManager *log_mgr, Transaction *txn) {
   memcpy(GetData(), &page_id, sizeof(page_id));
   SetPrevPageId(prev_id);
@@ -15,6 +16,7 @@ bool TablePage::InsertTuple(Row &row, Schema *schema, Transaction *txn,
   if (GetFreeSpaceRemaining() < serialized_size + SIZE_TUPLE) {
     return false;
   }
+  // assert(false);
   // Try to find a free slot to reuse.
   uint32_t i;
   for (i = 0; i < GetTupleCount(); i++) {
@@ -24,14 +26,21 @@ bool TablePage::InsertTuple(Row &row, Schema *schema, Transaction *txn,
       break;
     }
   }
+  // assert(false);
   if (i == GetTupleCount() && GetFreeSpaceRemaining() < serialized_size + SIZE_TUPLE) {
     return false;
   }
+  // assert(false);
   // Otherwise we claim available free space..
   SetFreeSpacePointer(GetFreeSpacePointer() - serialized_size);
+  // assert(false);
+  // uint32_t __attribute__((unused)) write_bytes = row.SerializeTo(GetData() + GetFreeSpacePointer(), schema);
+#ifdef ENABLE_BPM_DEBUG
+  LOG(INFO)<<"GetFreeSpacePointer: "<<GetFreeSpacePointer()<<std::endl;
+#endif
   uint32_t __attribute__((unused)) write_bytes = row.SerializeTo(GetData() + GetFreeSpacePointer(), schema);
   ASSERT(write_bytes = serialized_size, "Unexpected behavior in row serialize.");
-
+// assert(false);
   // Set the tuple.
   SetTupleOffsetAtSlot(i, GetFreeSpacePointer());
   SetTupleSize(i, serialized_size);

@@ -1,23 +1,53 @@
 #include "page/bitmap_page.h"
-
+#include "glog/logging.h"
+// #define ENABLE_BPM_DEBUG
 template<size_t PageSize>
-bool BitmapPage<PageSize>::AllocatePage(uint32_t &page_offset) {
-  return false;
+bool BitmapPage<PageSize>::AllocatePage(uint32_t &page_offset)
+{
+    if (page_allocated_ == MAX_CHARS * 8) return 0;
+    page_allocated_++;
+    page_offset = next_free_page_;
+#ifdef ENABLE_BPM_DEBUG
+      LOG(ERROR)<<"OFFSET: "<<page_offset<<"\n";
+      if(page_offset>=MAX_CHARS*8)
+      {
+        LOG(ERROR)<<"OFFSER OVER in ALLOCATEPAGE!\nOFFSET: "<<page_offset<<"\n";
+      }
+#endif
+    bytes[page_offset>>3] |= 1 << (7 - (page_offset & 0x7));
+    if(page_allocated_<MAX_CHARS * 8)
+    while (true) {
+      next_free_page_ = (next_free_page_ + 1) % (MAX_CHARS << 3);
+      if (IsPageFree(next_free_page_)) break;
+    }
+#ifdef ENABLE_BPM_DEBUG
+      LOG(INFO) << "next free page : "<<next_free_page_<< std::endl;
+#endif
+    return 1;
 }
-
 template<size_t PageSize>
 bool BitmapPage<PageSize>::DeAllocatePage(uint32_t page_offset) {
-  return false;
+    if (IsPageFree(page_offset)) return 0;
+    next_free_page_ = page_offset;
+#ifdef ENABLE_BPM_DEBUG
+      if(page_offset>=MAX_CHARS*8)
+      {
+        LOG(ERROR)<<"OFFSER OVER in DEALLOCATEPAGE!\nOFFSET: "<<page_offset<<"\n";
+      }
+#endif
+    page_allocated_--;
+    bytes[page_offset >> 3] &= ~(1 << (7 - (page_offset & 0x7)));
+    return 1;
 }
 
 template<size_t PageSize>
 bool BitmapPage<PageSize>::IsPageFree(uint32_t page_offset) const {
-  return false;
+  return !(bytes[page_offset >> 3] & (1 << (7 - (page_offset & 0x7))));
 }
 
 template<size_t PageSize>
 bool BitmapPage<PageSize>::IsPageFreeLow(uint32_t byte_index, uint8_t bit_index) const {
-  return false;
+  return bytes[byte_index] & (1<<(7-bit_index));
 }
 
 template

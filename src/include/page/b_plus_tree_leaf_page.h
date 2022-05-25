@@ -28,7 +28,7 @@
 
 #define B_PLUS_TREE_LEAF_PAGE_TYPE BPlusTreeLeafPage<KeyType, ValueType, KeyComparator>
 #define LEAF_PAGE_HEADER_SIZE 28
-#define LEAF_PAGE_SIZE (((PAGE_SIZE - LEAF_PAGE_HEADER_SIZE) / sizeof(MappingType)) - 1)
+#define LEAF_PAGE_SIZE ((PAGE_SIZE - LEAF_PAGE_HEADER_SIZE) / (sizeof(ValueType) + sizeof(KeyType)))
 
 INDEX_TEMPLATE_ARGUMENTS
 class BPlusTreeLeafPage : public BPlusTreePage {
@@ -41,9 +41,9 @@ public:
   page_id_t GetNextPageId() const;
 
   void SetNextPageId(page_id_t next_page_id);
-
+  page_id_t RemoveAndReturnOnlyChild();
   KeyType KeyAt(int index) const;
-
+  ValueType ValueAt(int index) const;
   int KeyIndex(const KeyType &key, const KeyComparator &comparator) const;
 
   const MappingType &GetItem(int index);
@@ -56,13 +56,16 @@ public:
   int RemoveAndDeleteRecord(const KeyType &key, const KeyComparator &comparator);
 
   // Split and Merge utility methods
-  void MoveHalfTo(BPlusTreeLeafPage *recipient);
 
-  void MoveAllTo(BPlusTreeLeafPage *recipient);
 
-  void MoveFirstToEndOf(BPlusTreeLeafPage *recipient);
+  void MoveAllTo(BPlusTreeLeafPage *recipient, const KeyType &middle_key,
+                 BufferPoolManager *buffer_pool_manager_ = nullptr);
+  void MoveHalfTo(BPlusTreeLeafPage *recipient, BufferPoolManager *buffer_pool_manager_ =nullptr);
+  void MoveFirstToEndOf(BPlusTreeLeafPage *recipient, KeyType &middle_key,
+                        BufferPoolManager *buffer_pool_manager_ = nullptr);
 
-  void MoveLastToFrontOf(BPlusTreeLeafPage *recipient);
+  void MoveLastToFrontOf(BPlusTreeLeafPage *recipient, KeyType &middle_key,
+                         BufferPoolManager *buffer_pool_manager_ = nullptr);
 
 private:
   void CopyNFrom(MappingType *items, int size);
@@ -72,7 +75,8 @@ private:
   void CopyFirstFrom(const MappingType &item);
 
   page_id_t next_page_id_;
-  MappingType array_[0];
+  KeyType key_[LEAF_PAGE_SIZE];
+  ValueType value_[LEAF_PAGE_SIZE];
 };
 
 #endif  // MINISQL_B_PLUS_TREE_LEAF_PAGE_H

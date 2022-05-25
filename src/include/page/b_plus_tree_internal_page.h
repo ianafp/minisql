@@ -6,7 +6,8 @@
 
 #define B_PLUS_TREE_INTERNAL_PAGE_TYPE BPlusTreeInternalPage<KeyType, ValueType, KeyComparator>
 #define INTERNAL_PAGE_HEADER_SIZE 24
-#define INTERNAL_PAGE_SIZE ((PAGE_SIZE - INTERNAL_PAGE_HEADER_SIZE) / (sizeof(MappingType)) - 1)
+#define INTERNAL_PAGE_SIZE \
+  ((PAGE_SIZE - INTERNAL_PAGE_HEADER_SIZE - sizeof(page_id_t)) / (sizeof(page_id_t) + sizeof(KeyType)))
 /**
  * Store n indexed keys and n+1 child pointers (page_id) within internal page.
  * Pointer PAGE_ID(i) points to a subtree in which all keys K satisfy:
@@ -27,32 +28,32 @@ public:
   void Init(page_id_t page_id, page_id_t parent_id = INVALID_PAGE_ID, int max_size = INTERNAL_PAGE_SIZE);
 
   KeyType KeyAt(int index) const;
-
+  void SetValueAt(int index,const page_id_t &value);
   void SetKeyAt(int index, const KeyType &key);
+  int KeyIndex(const KeyType &key,const KeyComparator& comparator_)const;
+  int ValueIndex(const page_id_t &value) const;
 
-  int ValueIndex(const ValueType &value) const;
-
-  ValueType ValueAt(int index) const;
-
-  ValueType Lookup(const KeyType &key, const KeyComparator &comparator) const;
+  page_id_t ValueAt(int index) const;
+  bool Lookup(const KeyType &key,ValueType& value,KeyComparator& comparator) const;
+  page_id_t Lookup(const KeyType &key, const KeyComparator &comparator) const;
 
   void PopulateNewRoot(const ValueType &old_value, const KeyType &new_key, const ValueType &new_value);
 
-  int InsertNodeAfter(const ValueType &old_value, const KeyType &new_key, const ValueType &new_value);
+  int InsertNodeAfter(const page_id_t &old_value, const KeyType &new_key, const page_id_t &new_value);
 
   void Remove(int index);
 
-  ValueType RemoveAndReturnOnlyChild();
+  page_id_t RemoveAndReturnOnlyChild();
 
   // Split and Merge utility methods
-  void MoveAllTo(BPlusTreeInternalPage *recipient, const KeyType &middle_key, BufferPoolManager *buffer_pool_manager);
+  void MoveAllTo(BPlusTreeInternalPage *recipient,const KeyType& middle_key,BufferPoolManager *buffer_pool_manager);
 
   void MoveHalfTo(BPlusTreeInternalPage *recipient, BufferPoolManager *buffer_pool_manager);
 
-  void MoveFirstToEndOf(BPlusTreeInternalPage *recipient, const KeyType &middle_key,
+  void MoveFirstToEndOf(BPlusTreeInternalPage *recipient, KeyType &middle_key,
                         BufferPoolManager *buffer_pool_manager);
 
-  void MoveLastToFrontOf(BPlusTreeInternalPage *recipient, const KeyType &middle_key,
+  void MoveLastToFrontOf(BPlusTreeInternalPage *recipient, KeyType &middle_key,
                          BufferPoolManager *buffer_pool_manager);
 
 private:
@@ -62,7 +63,8 @@ private:
 
   void CopyFirstFrom(const MappingType &pair, BufferPoolManager *buffer_pool_manager);
 
-  MappingType array_[0];
+   KeyType key_[INTERNAL_PAGE_SIZE];
+   page_id_t value_[INTERNAL_PAGE_SIZE + 1];
 };
 
 #endif  // MINISQL_B_PLUS_TREE_INTERNAL_PAGE_H

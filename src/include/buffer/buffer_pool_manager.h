@@ -20,7 +20,7 @@ public:
 
   Page *FetchPage(page_id_t page_id);
 
-  bool UnpinPage(page_id_t page_id, bool is_dirty);
+  bool UnpinPage(page_id_t page_id, bool is_dirty = true);
 
   bool FlushPage(page_id_t page_id);
 
