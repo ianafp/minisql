@@ -79,6 +79,8 @@ private:
                         Transaction *transaction = nullptr);
 
   template<typename N>
+  bool isDistinct(N *node);
+  template<typename N>
   N *Split(N *node,KeyType& midder_key);
 
   template<typename N>

@@ -1,5 +1,6 @@
 #include "index/b_plus_tree.h"
 #include <string>
+#include   <unordered_map>
 #include "glog/logging.h"
 #include "index/basic_comparator.h"
 #include "index/generic_key.h"
@@ -187,6 +188,7 @@ N *BPLUSTREE_TYPE::Split(N *node, KeyType &middle_key) {
     node->MoveHalfTo(new_page, buffer_pool_manager_);
   else {
     node->MoveHalfTo(new_page, middle_key, buffer_pool_manager_);
+    assert(comparator_(middle_key, new_page->KeyAt(0)));
   }
   return new_page;
 }
@@ -211,6 +213,7 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node, const KeyType &ke
     // internal node full after insert, need to split
     KeyType middle_key;
     B_PLUS_TREE_INTERNAL_PAGE_TYPE *new_internal_page = Split<B_PLUS_TREE_INTERNAL_PAGE_TYPE>(parent_page, middle_key);
+    assert(comparator_(middle_key, new_internal_page->KeyAt(0)));
     if (parent_page->IsRootPage()) {
       // need to generate new root
       int new_root_id;
@@ -229,6 +232,7 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node, const KeyType &ke
       // end
     } else {
       InsertIntoParent(parent_page, middle_key, new_internal_page);
+      
     }
     // InsertIntoParent(parent_page, new_internal_page->KeyAt(0),new_internal_page);
     buffer_pool_manager_->UnpinPage(new_internal_page->GetPageId());
@@ -287,6 +291,14 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
  */
 INDEX_TEMPLATE_ARGUMENTS
 template <typename N>
+bool BPLUSTREE_TYPE::isDistinct(N* node) {
+  for (int i = 0; i < node->GetSize() -1 ; ++i) {
+    if (comparator_(node->KeyAt(i),node->KeyAt(i+1))==0){return false;}
+ }
+  return true;
+}
+ INDEX_TEMPLATE_ARGUMENTS
+template <typename N>
 bool BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
   if (node->IsRootPage()) {
     // update root
@@ -308,12 +320,16 @@ bool BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
       reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE *>(buffer_pool_manager_->FetchPage(node->GetParentPageId()));
   int index = parent_page->ValueIndex(node->GetPageId());
   N *sibling_page;
+
   if (index == 0)
     sibling_page = reinterpret_cast<N *>(buffer_pool_manager_->FetchPage(parent_page->ValueAt(1)));
+  
   else
     sibling_page = reinterpret_cast<N *>(buffer_pool_manager_->FetchPage(parent_page->ValueAt(index - 1)));
+  assert(sibling_page->GetParentPageId()==node->GetParentPageId());
   if (sibling_page->GetSize() > sibling_page->GetMinSize()) {
-    Coalesce<N>(sibling_page, node, parent_page, index);
+    Redistribute(sibling_page,node,index);
+    //Coalesce<N>(sibling_page, node, parent_page, index);
     buffer_pool_manager_->UnpinPage(parent_page->GetPageId());
     buffer_pool_manager_->UnpinPage(sibling_page->GetPageId());
     buffer_pool_manager_->UnpinPage(node->GetPageId());
@@ -352,6 +368,7 @@ template <typename N>
 bool BPLUSTREE_TYPE::Coalesce(N *neighbor_node, N *node,
                               BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *parent, const int &index,
                               Transaction *transaction) {
+  //assert(comparator_((parent)->KeyAt(index),node->KeyAt(0)) || node->IsLeafPage());
   (node)->MoveAllTo(neighbor_node, (parent)->KeyAt(index), buffer_pool_manager_);
   for (int i = index; i < (parent)->GetSize() - 1; i++) {
     (parent)->SetKeyAt(i, (parent)->KeyAt(i + 1));
@@ -360,6 +377,8 @@ bool BPLUSTREE_TYPE::Coalesce(N *neighbor_node, N *node,
     (parent)->SetValueAt(i, (parent)->ValueAt(i + 1));
   }
   (parent)->IncreaseSize(-1);
+  //assert(isDistinct(neighbor_node));
+  //assert(isDistinct(parent));
   return ((parent)->GetSize() < (parent)->GetMinSize());
 }
 
@@ -377,13 +396,13 @@ template <typename N>
 void BPLUSTREE_TYPE::Redistribute(N *neighbor_node, N *node, int index) {
   B_PLUS_TREE_INTERNAL_PAGE_TYPE *parent_page =
       reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE *>(buffer_pool_manager_->FetchPage(node->GetParentPageId()));
-  KeyType &parent_key;
+ 
   if (index == 0) {
     // index = 0, move sibling's head to this's end
-    parent_key = parent_page->key_[0];
+    KeyType &parent_key = (*parent_page)[0];
     node->MoveFirstToEndOf(neighbor_node, parent_key, buffer_pool_manager_);
   } else {
-    parent_key = parent_key->key_[index];
+    KeyType &parent_key = (*parent_page)[index];
     node->MoveLastToFrontOf(neighbor_node, parent_key, buffer_pool_manager_);
   }
 }

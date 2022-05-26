@@ -15,8 +15,8 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Init(page_id_t page_id, page_id_t parent_id
   //this->page_id_ = page_id;
   this->SetPageId(page_id);
   this->SetParentPageId(parent_id);
-  this->SetMaxSize(INTERNAL_PAGE_SIZE);
-  // this->SetMaxSize(4);
+  //this->SetMaxSize(INTERNAL_PAGE_SIZE);
+   this->SetMaxSize(4);
   this->SetSize(0);
   this->SetPageType(IndexPageType::INTERNAL_PAGE);
   //this->page_type_ = IndexPageType::INTERNAL_PAGE;
@@ -63,6 +63,10 @@ int B_PLUS_TREE_INTERNAL_PAGE_TYPE::KeyIndex(const KeyType &key,const KeyCompara
  * offset)
  */
 INDEX_TEMPLATE_ARGUMENTS
+     KeyType& B_PLUS_TREE_INTERNAL_PAGE_TYPE::operator[](int index) {
+     return key_[index];
+ }
+ INDEX_TEMPLATE_ARGUMENTS
 page_id_t B_PLUS_TREE_INTERNAL_PAGE_TYPE::ValueAt(int index) const {
   // replace with your own code
   //page_id_t val{};
@@ -248,16 +252,19 @@ INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveFirstToEndOf(BPlusTreeInternalPage *recipient,KeyType &middle_key,
                                                       BufferPoolManager *buffer_pool_manager) {
   this->IncreaseSize(1);
-  this->key_[this->GetSize() - 1] = recipient->KeyAt(0);
-  this->value_[this->GetSize() - 1] = recipient->value_[0];
+  this->key_[this->GetSize() - 1] = middle_key;
+  middle_key = recipient->KeyAt(0);
+  this->value_[this->GetSize()] = recipient->value_[0];
   for (int i = 0; i < recipient->GetSize() - 1; ++i) {
     recipient->key_[i] = recipient->key_[i + 1];
+  }
+  for (int i = 0; i < recipient->GetSize(); ++i) {
     recipient->value_[i] = recipient->value_[i + 1];
   }
   B_PLUS_TREE_INTERNAL_PAGE_TYPE *temp_page =
-      reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE *>(buffer_pool_manager->FetchPage(value_[GetSize()-1]));
+      reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE *>(buffer_pool_manager->FetchPage(value_[GetSize()]));
   temp_page->SetParentPageId(this->GetPageId());
-  buffer_pool_manager->UnpinPage(value_[GetSize()-1]);
+  buffer_pool_manager->UnpinPage(value_[GetSize()]);
   recipient->IncreaseSize(-1);
   middle_key = recipient->key_[0];
 }
@@ -287,10 +294,13 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveLastToFrontOf(BPlusTreeInternalPage *re
   int i;
   for (i = this->GetSize() - 1; i > 0; --i) {
     key_[i] = key_[i - 1];
+  }
+  for (i = this->GetSize(); i > 0; --i) {
     value_[i] = value_[i - 1];
   }
-  key_[0] = recipient->key_[recipient->GetSize() - 1];
-  value_[0] = recipient->value_[recipient->GetSize() - 1];
+  key_[0] = middle_key;
+  value_[0] = recipient->value_[recipient->GetSize()];
+  middle_key = recipient->KeyAt(recipient->GetSize()-1);
 // persist the child page
   B_PLUS_TREE_INTERNAL_PAGE_TYPE *temp_page = reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE *>(
                                                   buffer_pool_manager->FetchPage(value_[0]));
