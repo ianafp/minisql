@@ -155,7 +155,7 @@ bool BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value, 
   // find the leaf
   B_PLUS_TREE_LEAF_PAGE_TYPE *leaf_page_ = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE *>(temp_ptr_internal);
   // insert to the leaf
-  if (leaf_page_->Insert(key, value, comparator_) >= leaf_page_->GetMaxSize()) {
+  if (leaf_page_->Insert(key, value, comparator_) > leaf_page_->GetMaxSize()) {
     // the leaf if full, split
     KeyType temp;
     B_PLUS_TREE_LEAF_PAGE_TYPE *new_leaf_ = Split<B_PLUS_TREE_LEAF_PAGE_TYPE>(leaf_page_, temp);
