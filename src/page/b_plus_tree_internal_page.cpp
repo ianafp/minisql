@@ -15,7 +15,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Init(page_id_t page_id, page_id_t parent_id
   //this->page_id_ = page_id;
   this->SetPageId(page_id);
   this->SetParentPageId(parent_id);
-  //this->SetMaxSize(INTERNAL_PAGE_SIZE);
+  // this->SetMaxSize(INTERNAL_PAGE_SIZE);
    this->SetMaxSize(4);
   this->SetSize(0);
   this->SetPageType(IndexPageType::INTERNAL_PAGE);
@@ -266,7 +266,6 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveFirstToEndOf(BPlusTreeInternalPage *rec
   temp_page->SetParentPageId(this->GetPageId());
   buffer_pool_manager->UnpinPage(value_[GetSize()]);
   recipient->IncreaseSize(-1);
-  middle_key = recipient->key_[0];
 }
 
 /* Append an entry at the end.
@@ -307,7 +306,6 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveLastToFrontOf(BPlusTreeInternalPage *re
   temp_page->SetParentPageId(this->GetPageId());
   buffer_pool_manager->UnpinPage(value_[0]);
   recipient->IncreaseSize(-1);
-  middle_key = this->key_[0];
 }
 
 /* Append an entry at the beginning.

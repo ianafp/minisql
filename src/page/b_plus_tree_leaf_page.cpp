@@ -16,7 +16,7 @@ INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_LEAF_PAGE_TYPE::Init(page_id_t page_id, page_id_t parent_id, int max_size) {
   this->SetPageId(page_id);
   this->SetParentPageId(parent_id);
-  //this->SetMaxSize(LEAF_PAGE_SIZE);
+  // this->SetMaxSize(LEAF_PAGE_SIZE);
    this->SetMaxSize(4);
   this->SetSize(0);
   this->SetPageType(IndexPageType::LEAF_PAGE);
@@ -211,7 +211,7 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveFirstToEndOf(BPlusTreeLeafPage *recipient,
                                                   KeyType &middle_key,BufferPoolManager *buffer_pool_manager_) {
   this->IncreaseSize(1);
   this->key_[this->GetSize() - 1] = recipient->KeyAt(0);
-  this->value_[this->GetSize()] = recipient->value_[0];
+  this->value_[this->GetSize() -1] = recipient->value_[0];
   for (int i = 0; i < recipient->GetSize()-1; ++i) {
     recipient->key_[i] = recipient->key_[i+1];
     recipient->value_[i] = recipient->value_[i+1];
