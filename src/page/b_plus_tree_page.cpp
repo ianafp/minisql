@@ -42,7 +42,8 @@ void BPlusTreePage::SetMaxSize(int size) {
  */
 int BPlusTreePage::GetMinSize() const { 
 if (this->IsRootPage()) return 1; 
-else return this->max_size_>>1;
+else if(this->IsLeafPage()) return (this->max_size_ >> 1);
+else return ((this->max_size_)>>1)-1;
  }
 
 /*
@@ -51,7 +52,7 @@ else return this->max_size_>>1;
 page_id_t BPlusTreePage::GetParentPageId() const { return parent_page_id_; }
 
 void BPlusTreePage::SetParentPageId(page_id_t parent_page_id) {
-  assert(parent_page_id != parent_page_id_);
+  assert(page_id_ != parent_page_id_);
   parent_page_id_ = parent_page_id;
 }
 

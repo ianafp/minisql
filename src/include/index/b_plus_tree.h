@@ -79,7 +79,7 @@ private:
                         Transaction *transaction = nullptr);
 
   template<typename N>
-  N *Split(N *node);
+  N *Split(N *node,KeyType& midder_key);
 
   template<typename N>
   bool CoalesceOrRedistribute(N *node, Transaction *transaction = nullptr);

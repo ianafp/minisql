@@ -61,6 +61,8 @@ public:
   void MoveAllTo(BPlusTreeLeafPage *recipient, const KeyType &middle_key,
                  BufferPoolManager *buffer_pool_manager_ = nullptr);
   void MoveHalfTo(BPlusTreeLeafPage *recipient, BufferPoolManager *buffer_pool_manager_ =nullptr);
+  void MoveHalfTo(BPlusTreeLeafPage *recipient, KeyType &middle_key,
+                 BufferPoolManager *buffer_pool_manager_ = nullptr);
   void MoveFirstToEndOf(BPlusTreeLeafPage *recipient, KeyType &middle_key,
                         BufferPoolManager *buffer_pool_manager_ = nullptr);
 

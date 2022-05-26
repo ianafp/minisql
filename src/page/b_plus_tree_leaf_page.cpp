@@ -16,7 +16,8 @@ INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_LEAF_PAGE_TYPE::Init(page_id_t page_id, page_id_t parent_id, int max_size) {
   this->SetPageId(page_id);
   this->SetParentPageId(parent_id);
-  this->SetMaxSize(max_size);
+  this->SetMaxSize(LEAF_PAGE_SIZE);
+  // this->SetMaxSize(4);
   this->SetSize(0);
   this->SetPageType(IndexPageType::LEAF_PAGE);
   this->SetNextPageId(INVALID_PAGE_ID);
@@ -103,6 +104,10 @@ int B_PLUS_TREE_LEAF_PAGE_TYPE::Insert(const KeyType &key, const ValueType &valu
  * Remove half of key & value pairs from this page to "recipient" page
  */
 INDEX_TEMPLATE_ARGUMENTS
+void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveHalfTo(BPlusTreeLeafPage *recipient,KeyType &middle_key,BufferPoolManager *buffer_pool_manager){
+  ASSERT(false,"no use");
+}
+INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveHalfTo(BPlusTreeLeafPage *recipient,
                                             BufferPoolManager *buffer_pool_manager_ ) {
   int local_size = GetSize() / 2;
@@ -185,6 +190,7 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveAllTo(BPlusTreeLeafPage *recipient, const K
       recipient->value_[i] = this->value_[i - recipient->GetSize()];
       recipient->key_[i] = this->key_[i - recipient->GetSize()];
    }
+   recipient->next_page_id_ = this->GetNextPageId();
   recipient->IncreaseSize(this->GetSize());
   buffer_pool_manager_->DeletePage(this->GetPageId());
 }

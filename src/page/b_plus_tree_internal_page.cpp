@@ -15,7 +15,8 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Init(page_id_t page_id, page_id_t parent_id
   //this->page_id_ = page_id;
   this->SetPageId(page_id);
   this->SetParentPageId(parent_id);
-  this->SetMaxSize(max_size);
+  this->SetMaxSize(INTERNAL_PAGE_SIZE);
+  // this->SetMaxSize(4);
   this->SetSize(0);
   this->SetPageType(IndexPageType::INTERNAL_PAGE);
   //this->page_type_ = IndexPageType::INTERNAL_PAGE;
@@ -128,10 +129,10 @@ int B_PLUS_TREE_INTERNAL_PAGE_TYPE::InsertNodeAfter(const page_id_t &old_value, 
 const page_id_t &new_value) {
 int i;
 int find_index = ValueIndex(old_value);
-for (i = this->GetSize()-1; i > find_index; ++i) {
+for (i = this->GetSize(); i > find_index; --i) {
   key_[i] = key_[i-1];
 }
-for (i = this->GetSize(); i > find_index + 1; ++i) {
+for (i = this->GetSize()+1; i > find_index + 1; --i) {
   value_[i] = value_[i-1];
 }
 this->IncreaseSize(1);
@@ -147,24 +148,26 @@ return this->GetSize();
  * Remove half of key & value pairs from this page to "recipient" page
  */
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveHalfTo(BPlusTreeInternalPage *recipient,
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveHalfTo(BPlusTreeInternalPage *recipient,BufferPoolManager *buffer_pool_manager){
+  ASSERT(false,"no use");
+}
+INDEX_TEMPLATE_ARGUMENTS
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveHalfTo(BPlusTreeInternalPage *recipient,KeyType & middle_key,
                                                 BufferPoolManager *buffer_pool_manager) {
   int i, half_size = this->GetSize() / 2;
-  recipient->value_[0] = INVALID_PAGE_ID;
-  for (i = this->GetSize() - 1; i >= this->GetSize() - half_size; i--) {
-    recipient->key_[half_size - this->GetSize() + 1 + i] = key_[i];
+  middle_key = this->key_[half_size];
+  int recipient_size = this->GetSize() - half_size - 1;
+  for(i = 0;i<recipient_size;++i){
+    recipient->key_[i] = this->key_[half_size+1+i];
   }
-  for (i = this->GetSize(); i >= this->GetSize() - half_size; i--) {
-    recipient->value_[i - this->GetSize() + half_size + 1] = value_[i];
+  for(i=0;i<recipient_size+1;++i){
+    recipient->value_[i] = this->value_[half_size+1+i];
+    BPlusTreePage* temp_page = reinterpret_cast<BPlusTreePage*>(buffer_pool_manager->FetchPage(this->value_[half_size+1+i]));
+    temp_page->SetParentPageId(recipient->GetPageId());
+    buffer_pool_manager->UnpinPage(this->value_[half_size+1+i]);
   }
-  recipient->SetSize(half_size);
-  this->SetSize(this->GetSize() - half_size);
-  for (i = 0; i < recipient->GetSize() + 1; ++i) {
-    BPlusTreePage *temp = reinterpret_cast<BPlusTreePage *>(buffer_pool_manager->FetchPage(recipient->value_[i]));
-    buffer_pool_manager->UnpinPage(recipient->value_[i], true);
-    temp->SetPageId(recipient->GetPageId());
-  }
-  //return recipient->key_[0];
+  this->SetSize(half_size);
+  recipient->SetSize(recipient_size);
 }
 
 /* Copy entries into me, starting from {items} and copy {size} entries.
@@ -215,16 +218,17 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveAllTo(BPlusTreeInternalPage *recipient,
                                                BufferPoolManager *buffer_pool_manager) {
     int i;
   // shift page id
-  for (i = recipient->GetSize() + 1; i < recipient->GetSize() + this->GetSize() + 1; ++i) {
+  for (i = recipient->GetSize() + 1; i < recipient->GetSize() + this->GetSize() + 2; ++i) {
       recipient->value_[i] = this->value_[i - 1 - recipient->GetSize()];
-      B_PLUS_TREE_INTERNAL_PAGE_TYPE *temp_ptr = reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE *>(recipient->value_[i]);
+      B_PLUS_TREE_INTERNAL_PAGE_TYPE *temp_ptr = reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE *>(buffer_pool_manager->FetchPage(recipient->value_[i]));
       temp_ptr->SetParentPageId(recipient->GetPageId());
       buffer_pool_manager->UnpinPage(recipient->value_[i]);
    }
-  recipient->key_[recipient->GetSize()] = middle_key;
-   for (i = recipient->GetSize() + 1; i < recipient->GetSize() + this->GetSize(); ++i) {
+  
+   for (i = recipient->GetSize() + 1; i < recipient->GetSize() + this->GetSize()+1; ++i) {
     recipient->key_[i] = this->key_[i - 1 - recipient->GetSize()];
   }
+   recipient->key_[recipient->GetSize()] = middle_key;
    recipient->IncreaseSize(this->GetSize()+1);
   buffer_pool_manager->DeletePage(this->GetPageId());
 }
