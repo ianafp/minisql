@@ -62,7 +62,7 @@ int B_PLUS_TREE_INTERNAL_PAGE_TYPE::KeyIndex(const KeyType &key,const KeyCompara
  * Helper method to get the value associated with input "index"(a.k.a array
  * offset)
  */
- INDEX_TEMPLATE_ARGUMENTS
+INDEX_TEMPLATE_ARGUMENTS
      KeyType& B_PLUS_TREE_INTERNAL_PAGE_TYPE::operator[](int index) {
      return key_[index];
  }
@@ -203,6 +203,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Remove(int index) {
 INDEX_TEMPLATE_ARGUMENTS
 page_id_t B_PLUS_TREE_INTERNAL_PAGE_TYPE::RemoveAndReturnOnlyChild() {
   // replace with your own code
+  
   return this->value_[0];
 }
 
@@ -265,6 +266,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveFirstToEndOf(BPlusTreeInternalPage *rec
   temp_page->SetParentPageId(this->GetPageId());
   buffer_pool_manager->UnpinPage(value_[GetSize()]);
   recipient->IncreaseSize(-1);
+  middle_key = recipient->key_[0];
 }
 
 /* Append an entry at the end.
@@ -299,12 +301,13 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveLastToFrontOf(BPlusTreeInternalPage *re
   key_[0] = middle_key;
   value_[0] = recipient->value_[recipient->GetSize()];
   middle_key = recipient->KeyAt(recipient->GetSize()-1);
-               // persist the child page
+// persist the child page
   B_PLUS_TREE_INTERNAL_PAGE_TYPE *temp_page = reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE *>(
                                                   buffer_pool_manager->FetchPage(value_[0]));
   temp_page->SetParentPageId(this->GetPageId());
   buffer_pool_manager->UnpinPage(value_[0]);
   recipient->IncreaseSize(-1);
+  middle_key = this->key_[0];
 }
 
 /* Append an entry at the beginning.

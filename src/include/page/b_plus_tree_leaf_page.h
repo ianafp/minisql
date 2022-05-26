@@ -43,7 +43,10 @@ public:
   void SetNextPageId(page_id_t next_page_id);
   page_id_t RemoveAndReturnOnlyChild();
   KeyType KeyAt(int index) const;
+<<<<<<< HEAD
   KeyType &operator[](int index);
+=======
+>>>>>>> d4aec7a0ef18adaf221cea1caea7a9383e7b15e2
   ValueType ValueAt(int index) const;
   int KeyIndex(const KeyType &key, const KeyComparator &comparator) const;
 

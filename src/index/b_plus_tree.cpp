@@ -303,10 +303,15 @@ bool BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
   if (node->IsRootPage()) {
     // update root
     int old_root_id = this->root_page_id_;
-    this->root_page_id_ = node->RemoveAndReturnOnlyChild();
-    BPlusTreePage* temp_tree = reinterpret_cast<BPlusTreePage*>(buffer_pool_manager_->FetchPage(root_page_id_));
-    temp_tree->SetParentPageId(INVALID_PAGE_ID);
-    buffer_pool_manager_->UnpinPage(root_page_id_);
+    if (node->IsLeafPage()) {
+      this->first_page_id_ = INVALID_PAGE_ID;
+      this->root_page_id_ = INVALID_PAGE_ID;
+    } else{
+      this->root_page_id_ = node->RemoveAndReturnOnlyChild();
+      BPlusTreePage* temp_tree = reinterpret_cast<BPlusTreePage*>(buffer_pool_manager_->FetchPage(root_page_id_));
+      temp_tree->SetParentPageId(INVALID_PAGE_ID);
+      buffer_pool_manager_->UnpinPage(root_page_id_);
+    }
     buffer_pool_manager_->DeletePage(old_root_id);
     return false;
   }

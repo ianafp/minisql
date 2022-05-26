@@ -28,7 +28,10 @@ public:
   void Init(page_id_t page_id, page_id_t parent_id = INVALID_PAGE_ID, int max_size = INTERNAL_PAGE_SIZE);
 
   KeyType KeyAt(int index) const;
+<<<<<<< HEAD
   KeyType &operator[](int index);
+=======
+>>>>>>> d4aec7a0ef18adaf221cea1caea7a9383e7b15e2
   void SetValueAt(int index,const page_id_t &value);
   void SetKeyAt(int index, const KeyType &key);
   int KeyIndex(const KeyType &key,const KeyComparator& comparator_)const;
@@ -51,7 +54,11 @@ public:
 
   void MoveHalfTo(BPlusTreeInternalPage *recipient,KeyType &middle_key,BufferPoolManager *buffer_pool_manager);
    void MoveHalfTo(BPlusTreeInternalPage *recipient,BufferPoolManager *buffer_pool_manager);
+<<<<<<< HEAD
   void MoveFirstToEndOf(BPlusTreeInternalPage *recipient,KeyType &middle_key,
+=======
+  void MoveFirstToEndOf(BPlusTreeInternalPage *recipient, KeyType &middle_key,
+>>>>>>> d4aec7a0ef18adaf221cea1caea7a9383e7b15e2
                         BufferPoolManager *buffer_pool_manager);
 
   void MoveLastToFrontOf(BPlusTreeInternalPage *recipient, KeyType &middle_key,
