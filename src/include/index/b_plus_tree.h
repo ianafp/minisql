@@ -52,7 +52,8 @@ public:
 
   // expose for test purpose
   Page *FindLeafPage(const KeyType &key, bool leftMost = false);
-
+  // check if there is deleted page in tree
+  void CheckDeletedPageInTree(BPlusTree& tree) const;
   // used to check whether all pages are unpinned
   bool Check();
 

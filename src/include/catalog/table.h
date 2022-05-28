@@ -30,7 +30,7 @@ public:
 
 
 private:
-  TableMetadata() = delete;
+  TableMetadata();
 
   TableMetadata(table_id_t table_id, std::string table_name, page_id_t root_page_id, TableSchema *schema);
 

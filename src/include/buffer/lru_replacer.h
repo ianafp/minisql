@@ -72,7 +72,7 @@ public:
   void Pin(frame_id_t frame_id) override;
 
   void Unpin(frame_id_t frame_id) override;
-
+  int GetPinCount() override;
   size_t Size() override;
 
 private:

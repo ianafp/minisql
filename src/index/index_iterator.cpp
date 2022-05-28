@@ -38,7 +38,7 @@ INDEX_TEMPLATE_ARGUMENTS INDEXITERATOR_TYPE &INDEXITERATOR_TYPE::operator++() {
       return *this;
     }else {
       //next page
-      leaf_page_ = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>(buffer_pool_manager_->FetchPage(leaf_page_->GetNextPageId()));
+      leaf_page_ = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>(buffer_pool_manager_->FetchPage(leaf_page_->GetNextPageId())->GetData());
       index_ = 0;
     }
   }

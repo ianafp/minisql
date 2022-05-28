@@ -93,6 +93,9 @@ bool LRUReplacer::insert(frame_id_t frame_id)
   lru_list.push_front(*temp); 
   return 1;
 }
+int LRUReplacer::GetPinCount(){
+  return this->pin_list.getCount();
+}
 bool LRUReplacer::Victim(frame_id_t *frame_id) {
     if(lru_list.isEmpty()) return 0;
     *frame_id = lru_list.pop_back();

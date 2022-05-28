@@ -7,22 +7,14 @@ bool BitmapPage<PageSize>::AllocatePage(uint32_t &page_offset)
     if (page_allocated_ == MAX_CHARS * 8) return 0;
     page_allocated_++;
     page_offset = next_free_page_;
-#ifdef ENABLE_BPM_DEBUG
-      LOG(ERROR)<<"OFFSET: "<<page_offset<<"\n";
-      if(page_offset>=MAX_CHARS*8)
-      {
-        LOG(ERROR)<<"OFFSER OVER in ALLOCATEPAGE!\nOFFSET: "<<page_offset<<"\n";
-      }
-#endif
+
     bytes[page_offset>>3] |= 1 << (7 - (page_offset & 0x7));
     if(page_allocated_<MAX_CHARS * 8)
     while (true) {
       next_free_page_ = (next_free_page_ + 1) % (MAX_CHARS << 3);
       if (IsPageFree(next_free_page_)) break;
     }
-#ifdef ENABLE_BPM_DEBUG
-      LOG(INFO) << "next free page : "<<next_free_page_<< std::endl;
-#endif
+
     return 1;
 }
 template<size_t PageSize>

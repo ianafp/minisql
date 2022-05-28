@@ -66,16 +66,18 @@ Page *BufferPoolManager::FetchPage(page_id_t page_id) {
     // reset metadata
     pages_[victim].is_dirty_ = false;
     pages_[victim].page_id_ = page_id;
-    pages_[victim].pin_count_ = 0;
+    pages_[victim].pin_count_ = 1;
     // read in from disk
     disk_manager_->ReadPage(page_id, pages_[victim].data_);
     // register in map
     page_table_.insert(std::pair<page_id_t, frame_id_t>(page_id, victim));
     // return
     replacer_->Pin(victim);
+    // pages_[victim].pin_count_++;
     return pages_ + victim;
   } else {
     replacer_->Pin(it->second);
+    pages_[it->second].pin_count_ = 1;
     return pages_ + it->second;
   }
 }
@@ -101,14 +103,10 @@ Page *BufferPoolManager::NewPage(page_id_t &page_id) {
     free_list_.pop_front();
     //
   } else {
-#ifdef ENABLE_BPM_DEBUG
-  LOG(INFO)<<"the free list  not empty, victim from replacer\n";
-#endif
+
     if (!replacer_->Victim(&victim)) {
-      LOG(ERROR)<<"NO REPLACE PAGE\n";
       return nullptr;
     }
-  
     // check if write back
     if(pages_[victim].IsDirty())
     {
@@ -120,7 +118,9 @@ Page *BufferPoolManager::NewPage(page_id_t &page_id) {
 #ifdef ENABLE_BPM_DEBUG
   LOG(INFO)<<"victim: "<<victim<<"\n";
 #endif
+  
   page_id = disk_manager_->AllocatePage();
+
   if(page_id==INVALID_PAGE_ID) return nullptr;
   // replacer_->Unpin(victim);
   replacer_->Pin(victim);
@@ -128,7 +128,7 @@ Page *BufferPoolManager::NewPage(page_id_t &page_id) {
   pages_[victim].ResetMemory();
   pages_[victim].is_dirty_ = false;
   pages_[victim].page_id_ = page_id;
-  pages_[victim].pin_count_ = 0;
+  pages_[victim].pin_count_ = 1;
   return pages_+victim;
 }
 
@@ -170,6 +170,7 @@ bool BufferPoolManager::UnpinPage(page_id_t page_id, bool is_dirty) {
   }
   pages_[it->second].is_dirty_ = is_dirty;
   replacer_->Unpin(it->second);
+  pages_[it->second].pin_count_ = 0;
 #ifdef ENABLE_BPM_DEBUG
       LOG(WARNING) << "break function UNPINPAGE: unpin successfully" << std::endl;
 #endif
@@ -205,12 +206,5 @@ bool BufferPoolManager::IsPageFree(page_id_t page_id) { return disk_manager_->Is
 
 // Only used for debug
 bool BufferPoolManager::CheckAllUnpinned() {
-  bool res = true;
-  for (size_t i = 0; i < pool_size_; i++) {
-    if (pages_[i].pin_count_ != 0) {
-      res = false;
-      LOG(ERROR) << "page " << pages_[i].page_id_ << " pin count:" << pages_[i].pin_count_ << endl;
-    }
-  }
-  return res;
+  return replacer_->GetPinCount() == 0;
 }

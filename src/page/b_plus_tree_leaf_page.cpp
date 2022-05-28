@@ -16,8 +16,8 @@ INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_LEAF_PAGE_TYPE::Init(page_id_t page_id, page_id_t parent_id, int max_size) {
   this->SetPageId(page_id);
   this->SetParentPageId(parent_id);
-  // this->SetMaxSize(LEAF_PAGE_SIZE);
-   this->SetMaxSize(4);
+  this->SetMaxSize(LEAF_PAGE_SIZE);
+  //  this->SetMaxSize(4);
   this->SetSize(0);
   this->SetPageType(IndexPageType::LEAF_PAGE);
   this->SetNextPageId(INVALID_PAGE_ID);
@@ -86,17 +86,20 @@ ValueType B_PLUS_TREE_LEAF_PAGE_TYPE::ValueAt(int index) const {return value_[in
  */
 INDEX_TEMPLATE_ARGUMENTS
 int B_PLUS_TREE_LEAF_PAGE_TYPE::Insert(const KeyType &key, const ValueType &value, const KeyComparator &comparator) {
-  int find_index = KeyIndex(key, comparator);
-  if (find_index != this->GetSize()) return this->GetSize();
+  int find_index;
+  // if (find_index != this->GetSize()) return this->GetSize();
   for (find_index = 0; find_index < this->GetSize(); ++find_index) {
-    if (comparator(key_[find_index],key) > 0) break; } 
+    if (comparator(key_[find_index],key) >= 0){
+      if(comparator(key_[find_index],key)==0) return GetSize();
+      else break;
+    } 
+  } 
   this->IncreaseSize(1);
   int i;
   for (i = this->GetSize() - 1; i > find_index; i--) key_[i] = key_[i - 1];
   for (i = this->GetSize() - 1; i > find_index; i--) value_[i] = value_[i - 1];
   value_[find_index] = value;
   key_[find_index] = key;
-
   return this->GetSize();
 }
 
@@ -195,6 +198,7 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveAllTo(BPlusTreeLeafPage *recipient, const K
    }
    recipient->next_page_id_ = this->GetNextPageId();
   recipient->IncreaseSize(this->GetSize());
+  buffer_pool_manager_->UnpinPage(this->GetPageId());
   buffer_pool_manager_->DeletePage(this->GetPageId());
 }
 

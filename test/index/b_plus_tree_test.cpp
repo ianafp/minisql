@@ -14,7 +14,7 @@ TEST(BPlusTreeTests, SampleTest) {
   BPlusTree<int, int, BasicComparator<int>> tree(0, engine.bpm_, comparator, 4, 4);
   TreeFileManagers mgr("tree_");
   // Prepare data
-  const int n = 10000;
+  const int n = 2742;
   vector<int> keys;
   vector<int> values;
   vector<int> delete_seq;
@@ -34,23 +34,33 @@ TEST(BPlusTreeTests, SampleTest) {
   }
   // Insert data
   for (int i = 0; i < n; i++) {
+
     tree.Insert(keys[i], values[i]);
+
   }
+  tree.PrintTree(mgr[0]);
+  // tree.CheckDeletedPageInTree(tree);
   ASSERT_TRUE(tree.Check());
   // Print tree
-  tree.PrintTree(mgr[0]);
+  
   // Search keys
   vector<int> ans;
   for (int i = 0; i < n; i++) {
     tree.GetValue(i, ans);
     ASSERT_EQ(kv_map[i], ans[i]);
   }
+  tree.PrintTree(mgr[0]);
+
+  std::cout<<"\n";
   ASSERT_TRUE(tree.Check());
   // Delete half keys
-  for (int i = 0; i < n; i++) {
+  for (int i = 0; i < n/2; i++) {
+    
     tree.Remove(delete_seq[i]);
   }
-  tree.PrintTree(mgr[1]);
+  // tree.CheckDeletedPageInTree(tree);
+  // auto &it = mgr[1];
+  // tree.PrintTree(it);
   // Check valid
   ans.clear();
   for (int i = 0; i < n / 2; i++) {

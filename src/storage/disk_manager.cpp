@@ -42,15 +42,11 @@ void DiskManager::WritePage(page_id_t logical_page_id, const char *page_data) {
 }
 
 page_id_t DiskManager::AllocatePage() {
-#ifdef ENABLE_BPM_DEBUG
-      LOG(WARNING) <<"in function ALLOCATE PAGE\n";
-#endif
+
     DiskFileMetaPage* meta = reinterpret_cast<DiskFileMetaPage*> (meta_data_);
     // check if full
     if(meta->GetAllocatedPages()==MAX_VALID_PAGE_ID) {
-#ifdef ENABLE_BPM_DEBUG
-      LOG(INFO) <<"the db file is already full! \n";
-#endif
+
       return INVALID_PAGE_ID;
     }
     meta->num_allocated_pages_++;
@@ -67,17 +63,13 @@ page_id_t DiskManager::AllocatePage() {
     if(i==meta->GetExtentNums())
     {
       // the current extent all full
-#ifdef ENABLE_BPM_DEBUG
-      LOG(INFO) << "the current extent all full, create new extent\n";
-#endif
+
       // create new extent
       extent_id = meta->num_extents_ ++ ;
     }
     else 
     {
-#ifdef ENABLE_BPM_DEBUG
-      LOG(INFO) << "find the extent id :"<<i<<"\n";
-#endif
+
       extent_id = i;
     }
     // generate meta
@@ -86,6 +78,7 @@ page_id_t DiskManager::AllocatePage() {
       LOG(WARNING) <<"!!!the bitmap page : "<<bitmap_physical_id<<"!!!\n";
 #endif
     // read in bit map
+
     char bitmap_contrnt[PAGE_SIZE];
     ReadPhysicalPage(bitmap_physical_id,bitmap_contrnt);
     // create bitmap
@@ -93,25 +86,13 @@ page_id_t DiskManager::AllocatePage() {
     // get page from bitmap
     (meta->extent_used_page_[extent_id])++;
     uint32_t page_id_in_extent;
-#ifdef ENABLE_BPM_DEBUG
-      LOG(WARNING) <<"!!!\n";
-#endif
-#ifdef ENABLE_BPM_DEBUG
-      LOG(WARNING) <<"???the bitmap meta : "<<bitmap->next_free_page_<<"???\n";
-#endif
+
     bitmap->AllocatePage(page_id_in_extent);
     // write back
-#ifdef ENABLE_BPM_DEBUG
-      LOG(WARNING) <<"###the bitmap meta : "<<bitmap->next_free_page_<<"###\n";
-      LOG(WARNING) <<"###the bitmap page : "<<bitmap_physical_id<<"###\n";
-#endif
-    WritePhysicalPage(bitmap_physical_id,bitmap_contrnt);
-    // WritePhysicalPage(0,meta_data_);
-    // return
-#ifdef ENABLE_BPM_DEBUG
-      LOG(WARNING) <<"break ALLOCATE PAGE\n";
-#endif
 
+    WritePhysicalPage(bitmap_physical_id,bitmap_contrnt);
+
+    // assert(extent_capacity * extent_id + page_id_in_extent!=523264);
     return extent_capacity * extent_id + page_id_in_extent;
 }
 
@@ -161,14 +142,14 @@ page_id_t DiskManager::MapPageId(page_id_t logical_page_id) {
   return 2+extent_id+extent_id*extent_capacity+page_id_in_extent;
 }
 
-int DiskManager::GetFileSize(const std::string &file_name) {
-  struct stat stat_buf;
-  int rc = stat(file_name.c_str(), &stat_buf);
+long signed int DiskManager::GetFileSize(const std::string &file_name) {
+  struct stat64 stat_buf;
+  int rc = stat64(file_name.c_str(), &stat_buf);
   return rc == 0 ? stat_buf.st_size : -1;
 }
 
 void DiskManager::ReadPhysicalPage(page_id_t physical_page_id, char *page_data) {
-  int offset = physical_page_id * PAGE_SIZE;
+  long signed int offset = static_cast<long signed int>(physical_page_id) * PAGE_SIZE;
   // check if read beyond file length
   if (offset >= GetFileSize(file_name_)) {
 #ifdef ENABLE_BPM_DEBUG

@@ -26,7 +26,7 @@ public:
    * @param frame_id the id of the frame to pin
    */
   virtual void Pin(frame_id_t frame_id) = 0;
-
+  virtual int GetPinCount() = 0;
   /**
    * Unpins a frame, indicating that it can now be victimized.
    * @param frame_id the id of the frame to unpin

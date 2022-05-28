@@ -33,7 +33,7 @@ public:
   inline index_id_t GetIndexId() const { return index_id_; }
 
 private:
-  IndexMetadata() = delete;
+  IndexMetadata();
 
   explicit IndexMetadata(const index_id_t index_id, const std::string &index_name,
                          const table_id_t table_id, const std::vector<uint32_t> &key_map) {}
@@ -64,7 +64,13 @@ public:
     // Step1: init index metadata and table info
     // Step2: mapping index key to key schema
     // Step3: call CreateIndex to create the index
-    ASSERT(false, "Not Implemented yet.");
+    // step 1
+    this->table_info_ = table_info;
+    this->meta_data_ = meta_data;
+    // step 2
+    this->key_schema_ = Schema::ShallowCopySchema(table_info->GetSchema(),meta_data->GetKeyMapping(),this->heap_);
+    // step 3
+    this->index_ = CreateIndex(buffer_pool_manager);
   }
 
   inline Index *GetIndex() { return index_; }

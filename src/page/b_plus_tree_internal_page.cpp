@@ -15,8 +15,8 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Init(page_id_t page_id, page_id_t parent_id
   //this->page_id_ = page_id;
   this->SetPageId(page_id);
   this->SetParentPageId(parent_id);
-  // this->SetMaxSize(INTERNAL_PAGE_SIZE);
-   this->SetMaxSize(4);
+  this->SetMaxSize(INTERNAL_PAGE_SIZE);
+  //  this->SetMaxSize(4);
   this->SetSize(0);
   this->SetPageType(IndexPageType::INTERNAL_PAGE);
   //this->page_type_ = IndexPageType::INTERNAL_PAGE;
@@ -44,7 +44,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::SetKeyAt(int index, const KeyType &key) {th
 INDEX_TEMPLATE_ARGUMENTS
 int B_PLUS_TREE_INTERNAL_PAGE_TYPE::ValueIndex(const page_id_t &value) const {
   int res;
-  for (res = 0; res < this->GetSize(); ++res) {
+  for (res = 0; res < this->GetSize()+1; ++res) {
     if (value_[res] == value) break;
   }
   return res;
@@ -133,10 +133,10 @@ int B_PLUS_TREE_INTERNAL_PAGE_TYPE::InsertNodeAfter(const page_id_t &old_value, 
 const page_id_t &new_value) {
 int i;
 int find_index = ValueIndex(old_value);
-for (i = this->GetSize(); i > find_index; --i) {
+for (i = this->GetSize(); i > find_index-1; --i) {
   key_[i] = key_[i-1];
 }
-for (i = this->GetSize()+1; i > find_index + 1; --i) {
+for (i = this->GetSize()+1; i > find_index ; --i) {
   value_[i] = value_[i-1];
 }
 this->IncreaseSize(1);
@@ -166,7 +166,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveHalfTo(BPlusTreeInternalPage *recipient
   }
   for(i=0;i<recipient_size+1;++i){
     recipient->value_[i] = this->value_[half_size+1+i];
-    BPlusTreePage* temp_page = reinterpret_cast<BPlusTreePage*>(buffer_pool_manager->FetchPage(this->value_[half_size+1+i]));
+    BPlusTreePage* temp_page = reinterpret_cast<BPlusTreePage*>(buffer_pool_manager->FetchPage(this->value_[half_size+1+i])->GetData() );
     temp_page->SetParentPageId(recipient->GetPageId());
     buffer_pool_manager->UnpinPage(this->value_[half_size+1+i]);
   }
@@ -224,7 +224,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveAllTo(BPlusTreeInternalPage *recipient,
   // shift page id
   for (i = recipient->GetSize() + 1; i < recipient->GetSize() + this->GetSize() + 2; ++i) {
       recipient->value_[i] = this->value_[i - 1 - recipient->GetSize()];
-      B_PLUS_TREE_INTERNAL_PAGE_TYPE *temp_ptr = reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE *>(buffer_pool_manager->FetchPage(recipient->value_[i]));
+      B_PLUS_TREE_INTERNAL_PAGE_TYPE *temp_ptr = reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE *>(buffer_pool_manager->FetchPage(recipient->value_[i])->GetData() );
       temp_ptr->SetParentPageId(recipient->GetPageId());
       buffer_pool_manager->UnpinPage(recipient->value_[i]);
    }
@@ -234,6 +234,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveAllTo(BPlusTreeInternalPage *recipient,
   }
    recipient->key_[recipient->GetSize()] = middle_key;
    recipient->IncreaseSize(this->GetSize()+1);
+  buffer_pool_manager->UnpinPage(this->GetPageId());
   buffer_pool_manager->DeletePage(this->GetPageId());
 }
 
@@ -262,7 +263,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveFirstToEndOf(BPlusTreeInternalPage *rec
     recipient->value_[i] = recipient->value_[i + 1];
   }
   B_PLUS_TREE_INTERNAL_PAGE_TYPE *temp_page =
-      reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE *>(buffer_pool_manager->FetchPage(value_[GetSize()]));
+      reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE *>(buffer_pool_manager->FetchPage(value_[GetSize()])->GetData());
   temp_page->SetParentPageId(this->GetPageId());
   buffer_pool_manager->UnpinPage(value_[GetSize()]);
   recipient->IncreaseSize(-1);
@@ -302,7 +303,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveLastToFrontOf(BPlusTreeInternalPage *re
   middle_key = recipient->KeyAt(recipient->GetSize()-1);
 // persist the child page
   B_PLUS_TREE_INTERNAL_PAGE_TYPE *temp_page = reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE *>(
-                                                  buffer_pool_manager->FetchPage(value_[0]));
+                                                  buffer_pool_manager->FetchPage(value_[0])->GetData() );
   temp_page->SetParentPageId(this->GetPageId());
   buffer_pool_manager->UnpinPage(value_[0]);
   recipient->IncreaseSize(-1);

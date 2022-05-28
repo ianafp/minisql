@@ -76,7 +76,7 @@ private:
   /**
    * Helper function to get disk file size
    */
-  int GetFileSize(const std::string &file_name);
+  long signed int GetFileSize(const std::string &file_name);
 
   /**
    * Read physical page from disk
