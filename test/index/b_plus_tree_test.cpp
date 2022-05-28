@@ -38,8 +38,8 @@ TEST(BPlusTreeTests, SampleTest) {
     tree.Insert(keys[i], values[i]);
 
   }
-  tree.PrintTree(mgr[0]);
-  // tree.CheckDeletedPageInTree(tree);
+  // tree.PrintTree(mgr[0]);
+
   ASSERT_TRUE(tree.Check());
   // Print tree
   
