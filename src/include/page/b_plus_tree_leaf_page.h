@@ -32,7 +32,11 @@
 
 INDEX_TEMPLATE_ARGUMENTS
 class BPlusTreeLeafPage : public BPlusTreePage {
+
+
+// friend class IndexIterator<KeyType, ValueType, KeyComparator>;
 public:
+  // INDEX_TEMPLATE_ARGUMENTS friend class IndexIterator;
   // After creating a new leaf page from buffer pool, must call initialize
   // method to set default values
   void Init(page_id_t page_id, page_id_t parent_id = INVALID_PAGE_ID, int max_size = LEAF_PAGE_SIZE);

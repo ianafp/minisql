@@ -19,6 +19,7 @@ extern "C" {
  */
 struct ExecuteContext {
   bool flag_quit_{false};
+  bool condition_{true};
   Transaction *txn_{nullptr};
 };
 
@@ -79,9 +80,14 @@ private:
 
   dberr_t ExecuteQuit(pSyntaxNode ast, ExecuteContext *context);
 
+  // Extra functions (for condition judgement)
+
+  dberr_t LogicConditions(pSyntaxNode ast, ExecuteContext *context, const Row &row, Schema* schema);
+
 private:
   [[maybe_unused]] std::unordered_map<std::string, DBStorageEngine *> dbs_;  /** all opened databases */
   [[maybe_unused]] std::string current_db_;  /** current database */
 };
 
 #endif //MINISQL_EXECUTE_ENGINE_H
+

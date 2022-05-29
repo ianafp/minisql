@@ -28,7 +28,7 @@ public:
 private:
   // add your own private member variables here
   int index_;
-  MappingType val_;
+  std::pair<KeyType,ValueType> val_;
   B_PLUS_TREE_LEAF_PAGE_TYPE* leaf_page_;
   BufferPoolManager* buffer_pool_manager_;
 };
