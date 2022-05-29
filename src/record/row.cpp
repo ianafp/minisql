@@ -6,11 +6,7 @@ uint32_t Row::SerializeTo(char *buf, Schema *schema) const {
   // assert(false);
   uint32_t offset = 0;
   // write row id
-#ifdef ENABLE_BPM_DEBUG
-  LOG(INFO)<<"in Row::SerializeTo:\n";
-  LOG(INFO)<<"buf: "<<buf<<std::endl;
-  // assert(false);
-#endif
+
   // buf[0] = 16;
   
   MACH_WRITE_TO(RowId, buf + offset, rid_);

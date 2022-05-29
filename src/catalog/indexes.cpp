@@ -36,21 +36,21 @@ uint32_t IndexMetadata::GetSerializedSize() const {
 
 uint32_t IndexMetadata::DeserializeFrom(char *buf, IndexMetadata *&index_meta, MemHeap *heap) {
   uint32_t offset = 0;
-  assert(IndexMetadata::INDEX_METADATA_MAGIC_NUM==MACH_READ_FROM(uint32_t,buf+offset));
+  assert(IndexMetadata::INDEX_METADATA_MAGIC_NUM==MACH_READ_UINT32(buf+offset));
   offset += sizeof(uint32_t);
   index_meta = ALLOC_P(heap,IndexMetadata)();
-  index_meta->index_id_ = MACH_READ_FROM(uint32_t,buf+offset);
+  index_meta->index_id_ = MACH_READ_UINT32(buf+offset);
   offset += sizeof(uint32_t);
-  uint32_t len = MACH_READ_FROM(uint32_t,buf+offset);
+  uint32_t len = MACH_READ_UINT32(buf+offset);
   offset += sizeof(uint32_t);
   index_meta->index_name_ = std::string(buf+offset);
   offset += len;
-  index_meta->table_id_ = MACH_READ_FROM(uint32_t,buf+offset);
+  index_meta->table_id_ = MACH_READ_UINT32(buf+offset);
   offset += sizeof(uint32_t);
-  uint32_t size = MACH_READ_FROM(uint32_t,buf+offset);
+  uint32_t size = MACH_READ_UINT32(buf+offset);
   offset += sizeof(uint32_t);
   for(uint32_t i=0;i<size;++i){
-    index_meta->key_map_.push_back(MACH_READ_FROM(uint32_t,buf+offset));
+    index_meta->key_map_.push_back(MACH_READ_UINT32(buf+offset));
     offset += sizeof(uint32_t);
   }
   return offset;

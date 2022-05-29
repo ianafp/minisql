@@ -16,8 +16,8 @@ INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_LEAF_PAGE_TYPE::Init(page_id_t page_id, page_id_t parent_id, int max_size) {
   this->SetPageId(page_id);
   this->SetParentPageId(parent_id);
-  this->SetMaxSize(LEAF_PAGE_SIZE);
-  //  this->SetMaxSize(4);
+  // this->SetMaxSize(LEAF_PAGE_SIZE);
+   this->SetMaxSize(4);
   this->SetSize(0);
   this->SetPageType(IndexPageType::LEAF_PAGE);
   this->SetNextPageId(INVALID_PAGE_ID);
@@ -276,3 +276,6 @@ class BPlusTreeLeafPage<GenericKey<32>, RowId, GenericComparator<32>>;
 
 template
 class BPlusTreeLeafPage<GenericKey<64>, RowId, GenericComparator<64>>;
+
+template
+class BPlusTreeLeafPage<GenericKey<128>, RowId, GenericComparator<128>>;

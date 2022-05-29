@@ -14,7 +14,7 @@ uint32_t TableMetadata::SerializeTo(char *buf) const {
   offset += len;
   MACH_WRITE_TO(uint32_t,buf+offset,root_page_id_);
   offset += sizeof(uint32_t);
-  offset+=schema_->SerializeTo(buf);
+  offset+=schema_->SerializeTo(buf+offset);
   return offset;
 }
 
@@ -27,21 +27,21 @@ uint32_t TableMetadata::GetSerializedSize() const {
  */
 uint32_t TableMetadata::DeserializeFrom(char *buf, TableMetadata *&table_meta, MemHeap *heap) {
   uint32_t offset = 0;
-  assert(TableMetadata::TABLE_METADATA_MAGIC_NUM==MACH_READ_FROM(uint32_t,buf+offset));
+  assert(TableMetadata::TABLE_METADATA_MAGIC_NUM==MACH_READ_UINT32(buf+offset));
   offset += sizeof(uint32_t);
 
-  table_meta = ALLOC_P(heap,TableMetadata)();
-  table_meta ->table_id_ = MACH_READ_FROM(uint32_t,buf+offset);
+  table_meta = ALLOC_P(heap,TableMetadata);
+  table_meta ->table_id_ = MACH_READ_UINT32(buf+offset);
   offset += sizeof(uint32_t);
 
-  uint32_t len = MACH_READ_FROM(uint32_t,buf+offset);
+  uint32_t len = MACH_READ_UINT32(buf+offset);
   offset += sizeof(uint32_t);
 
   table_meta->table_name_ = std::string(buf+offset);
   offset += len;
 
-  table_meta -> root_page_id_ = MACH_READ_FROM(uint32_t,buf+offset);
-
+  table_meta -> root_page_id_ = MACH_READ_UINT32(buf+offset);
+  offset += sizeof(uint32_t);
   offset += Schema::DeserializeFrom(buf+offset,table_meta->schema_,heap);
   return offset;
 }

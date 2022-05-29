@@ -7,10 +7,10 @@
 #include "index/generic_key.h"
 #include "index/b_plus_tree_index.h"
 #include "record/schema.h"
-
+#include "page/index_roots_page.h"
+#include "record/row.h"
 class IndexMetadata {
   friend class IndexInfo;
-
 public:
   static IndexMetadata *Create(const index_id_t index_id, const std::string &index_name,
                                const table_id_t table_id, const std::vector<uint32_t> &key_map,
@@ -33,10 +33,16 @@ public:
   inline index_id_t GetIndexId() const { return index_id_; }
 
 private:
-  IndexMetadata();
+  IndexMetadata() = default;
 
   explicit IndexMetadata(const index_id_t index_id, const std::string &index_name,
-                         const table_id_t table_id, const std::vector<uint32_t> &key_map) {}
+                         const table_id_t table_id, const std::vector<uint32_t> &key_map) {
+                           this->index_id_= index_id;
+                           this->index_name_ = index_name;
+                           this->table_id_ = table_id;
+                           this->key_map_ = key_map;
+                         }
+
 
 private:
   static constexpr uint32_t INDEX_METADATA_MAGIC_NUM = 344528;
@@ -51,12 +57,31 @@ private:
  */
 class IndexInfo {
 public:
+  using INDEX_KEY_TYPE128 = GenericKey<128>;
+  using INDEX_COMPARATOR_TYPE128 = GenericComparator<128>;
+  using BP_TREE_INDEX128 = BPlusTreeIndex<INDEX_KEY_TYPE128, RowId, INDEX_COMPARATOR_TYPE128>;
+  using INDEX_KEY_TYPE64 = GenericKey<64>;
+  using INDEX_COMPARATOR_TYPE64 = GenericComparator<64>;
+  using BP_TREE_INDEX64 = BPlusTreeIndex<INDEX_KEY_TYPE64, RowId, INDEX_COMPARATOR_TYPE64>;
+  using INDEX_KEY_TYPE32 = GenericKey<32>;
+  using INDEX_COMPARATOR_TYPE32 = GenericComparator<32>;
+  using BP_TREE_INDEX32 = BPlusTreeIndex<INDEX_KEY_TYPE32, RowId, INDEX_COMPARATOR_TYPE32>;
+  using INDEX_KEY_TYPE16 = GenericKey<16>;
+  using INDEX_COMPARATOR_TYPE16 = GenericComparator<16>;
+  using BP_TREE_INDEX16 = BPlusTreeIndex<INDEX_KEY_TYPE16, RowId, INDEX_COMPARATOR_TYPE16>;
+  using INDEX_KEY_TYPE8 = GenericKey<8>;
+  using INDEX_COMPARATOR_TYPE8 = GenericComparator<8>;
+  using BP_TREE_INDEX8 = BPlusTreeIndex<INDEX_KEY_TYPE8, RowId, INDEX_COMPARATOR_TYPE8>;
+  using INDEX_KEY_TYPE4 = GenericKey<4>;
+  using INDEX_COMPARATOR_TYPE4 = GenericComparator<4>;
+  using BP_TREE_INDEX4 = BPlusTreeIndex<INDEX_KEY_TYPE4, RowId, INDEX_COMPARATOR_TYPE4>;
   static IndexInfo *Create(MemHeap *heap) {
     void *buf = heap->Allocate(sizeof(IndexInfo));
     return new(buf)IndexInfo();
   }
 
   ~IndexInfo() {
+    
     delete heap_;
   }
 
@@ -88,8 +113,44 @@ private:
                          key_schema_{nullptr}, heap_(new SimpleMemHeap()) {}
 
   Index *CreateIndex(BufferPoolManager *buffer_pool_manager) {
-    ASSERT(false, "Not Implemented yet.");
-    return nullptr;
+    // allocate root page for the index
+    IndexRootsPage* index_root_page = reinterpret_cast<IndexRootsPage*>(buffer_pool_manager->FetchPage(INDEX_ROOTS_PAGE_ID)->GetData());
+    buffer_pool_manager->UnpinPage(INDEX_ROOTS_PAGE_ID);
+    index_id_t index_id = this->meta_data_->GetIndexId();
+    page_id_t root_page_id;
+    if(!index_root_page->GetRootId(index_id,&root_page_id)){
+      index_root_page->Insert(index_id,INVALID_PAGE_ID);
+    }
+    uint32_t key_size = 4;
+    std::vector<Column*> cols = key_schema_->GetColumns();
+    uint32_t key_len = 0;
+    for(auto &it :cols){
+      key_len += it->GetLength();
+    }
+    assert(key_len<=128);
+    Index* res;
+    while(key_size<key_len) key_size<<=1;
+    switch(key_size){
+      case 4: res = ALLOC_P(this->heap_,BP_TREE_INDEX4)(this->meta_data_->GetIndexId(),this->key_schema_,buffer_pool_manager);break;
+      case 8: res =  ALLOC_P(this->heap_,BP_TREE_INDEX8)(this->meta_data_->GetIndexId(),this->key_schema_,buffer_pool_manager);break;
+      case 16: res = ALLOC_P(this->heap_,BP_TREE_INDEX16)(this->meta_data_->GetIndexId(),this->key_schema_,buffer_pool_manager);break;
+      case 32: res = ALLOC_P(this->heap_,BP_TREE_INDEX32)(this->meta_data_->GetIndexId(),this->key_schema_,buffer_pool_manager);break;
+      case 64: res = ALLOC_P(this->heap_,BP_TREE_INDEX64)(this->meta_data_->GetIndexId(),this->key_schema_,buffer_pool_manager);break;
+      case 128: res = ALLOC_P(this->heap_,BP_TREE_INDEX128)(this->meta_data_->GetIndexId(),this->key_schema_,buffer_pool_manager);break;
+      default: return nullptr;break;
+    }
+    // syn to table heap
+  
+  // insert the table content to the index
+  auto it_table_heap_ = this->table_info_->GetTableHeap()->Begin(nullptr);
+  while(it_table_heap_!=this->table_info_->GetTableHeap()->End()){
+    vector<Field> key_field;
+    for(auto &it:this->meta_data_->key_map_){
+      key_field.push_back(*it_table_heap_->GetField(it));
+    }
+    res->InsertEntry(Row(key_field),it_table_heap_->GetRowId(),nullptr);
+  }
+  return res;
   }
 
 private:

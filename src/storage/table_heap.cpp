@@ -140,7 +140,8 @@ TableIterator TableHeap::Begin(Transaction *txn)
     }
     else break;
   }
-  Row* row_ = nullptr;
+  if(temp.Get()==INVALID_ROWID.Get()) return TableIterator(nullptr,this,txn);
+  Row* row_ = new Row(temp);
   // table_page_ptr->GetTuple(row_,schema_,txn,lock_manager_);
   table_page_ptr->GetTuple(row_,schema_,txn,lock_manager_);
   return TableIterator(row_,this,txn); 

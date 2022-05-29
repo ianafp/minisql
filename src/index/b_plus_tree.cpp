@@ -14,7 +14,11 @@ BPLUSTREE_TYPE::BPlusTree(index_id_t index_id, BufferPoolManager *buffer_pool_ma
       comparator_(comparator),
       leaf_max_size_(leaf_max_size),
       internal_max_size_(internal_max_size) {
-  this->root_page_id_ = INVALID_PAGE_ID;
+  IndexRootsPage* index_root_page = reinterpret_cast<IndexRootsPage*>(buffer_pool_manager->FetchPage(INDEX_ROOTS_PAGE_ID));
+  buffer_pool_manager->UnpinPage(INDEX_ROOTS_PAGE_ID);
+  if(!index_root_page->GetRootId(this->index_id_,&this->root_page_id_)){
+    this->root_page_id_ = INVALID_PAGE_ID;
+  }
   this->first_page_id_ = INVALID_PAGE_ID;
 }
 
@@ -85,6 +89,8 @@ bool BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
     root_leaf_page->Insert(key, value, comparator_);
     // success
     buffer_pool_manager_->UnpinPage(this->root_page_id_);
+    // update root page
+    UpdateRootPageId();
     return true;
   } else
     return InsertIntoLeaf(key, value);
@@ -140,8 +146,11 @@ bool BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value, 
       buffer_pool_manager_->UnpinPage(root_page_id_, true);
       buffer_pool_manager_->UnpinPage(root_leaf_page->GetPageId(), true);
       buffer_pool_manager_->UnpinPage(new_leaf_page->GetPageId(), true);
+
+      // update root page id
+      UpdateRootPageId();
     }
-          return true;
+    return true;
   }
   // then consider the root is internal page, we have to first find the leaf.
   BPlusTreePage *temp_ptr_internal = reinterpret_cast<BPlusTreePage*>(btree_page);
@@ -235,6 +244,8 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node, const KeyType &ke
       new_root_internal->InsertNodeAfter(parent_page->GetPageId(), middle_key, new_internal_page->GetPageId());
       buffer_pool_manager_->UnpinPage(new_root_id);
       buffer_pool_manager_->UnpinPage(new_internal_page->GetPageId());
+
+      UpdateRootPageId();
       // end
     } else {
       InsertIntoParent(parent_page, middle_key, new_internal_page);
@@ -327,6 +338,7 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
     buffer_pool_manager_->UnpinPage(this->root_page_id_);
     buffer_pool_manager_->DeletePage(this->root_page_id_);
     this->root_page_id_ = INVALID_PAGE_ID;
+    UpdateRootPageId();
     return;
   }
   // leaf node no root
@@ -370,6 +382,7 @@ bool BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
     buffer_pool_manager_->UnpinPage(root_page_id_);
     buffer_pool_manager_->UnpinPage(old_root_id);
     buffer_pool_manager_->DeletePage(old_root_id);
+    this->UpdateRootPageId();
     return false;
   }
 
@@ -559,7 +572,11 @@ Page *BPLUSTREE_TYPE::FindLeafPage(const KeyType &key, bool leftMost) { return n
  * updating it.
  */
 INDEX_TEMPLATE_ARGUMENTS
-void BPLUSTREE_TYPE::UpdateRootPageId(int insert_record) {}
+void BPLUSTREE_TYPE::UpdateRootPageId() {
+  IndexRootsPage* meta_root_page = reinterpret_cast<IndexRootsPage*>(buffer_pool_manager_->FetchPage(INDEX_ROOTS_PAGE_ID));
+  buffer_pool_manager_->UnpinPage(INDEX_ROOTS_PAGE_ID);
+  meta_root_page->Update(this->index_id_,this->root_page_id_);
+}
 
 /**
  * This method is used for debug only, You don't need to modify
@@ -703,3 +720,5 @@ template class BPlusTree<GenericKey<16>, RowId, GenericComparator<16>>;
 template class BPlusTree<GenericKey<32>, RowId, GenericComparator<32>>;
 
 template class BPlusTree<GenericKey<64>, RowId, GenericComparator<64>>;
+
+template class BPlusTree<GenericKey<128>, RowId, GenericComparator<128>>;

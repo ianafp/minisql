@@ -29,23 +29,20 @@ uint32_t Schema::DeserializeFrom(char *buf, Schema *&schema, MemHeap *heap) {
   // replace with your code here
   // read magic num
   uint32_t offset = 0;
-  uint32_t count = MACH_READ_FROM(uint32_t,buf+offset);
-  if(count!=Schema::SCHEMA_MAGIC_NUM){
-#ifdef ENABLE_BPM_DEBUG
-  LOG(ERROR)<<"SCHEMA MAGIN NUM NOT MATCHED!\n";
-#endif
-    return 0;
-  }
+  uint32_t count = MACH_READ_UINT32(buf+offset);
+  assert(count==Schema::SCHEMA_MAGIC_NUM);
+
+  // create colums
   offset += sizeof(Schema::SCHEMA_MAGIC_NUM);
+  std::vector<Column*> cols;
   // read count
-  count = MACH_READ_FROM(uint32_t,buf+offset);
+  count = MACH_READ_UINT32(buf+offset);
   offset += sizeof(Schema::SCHEMA_MAGIC_NUM);
-  // read columns
-  if(count>schema->columns_.capacity()){
-    schema->columns_.resize(count+10);
-  }
+  cols.resize(count);
   for(uint32_t i=0;i<count;++i){
-    offset += Column::DeserializeFrom(buf+offset,schema->columns_[i],heap);
+    offset += Column::DeserializeFrom(buf+offset,cols[i],heap);
   }
+  // allocate schema
+  schema = ALLOC_P(heap,Schema)(cols);
   return offset;
 }

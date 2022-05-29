@@ -1,6 +1,6 @@
 #ifndef MINISQL_CATALOG_H
 #define MINISQL_CATALOG_H
-
+#define TABLE_HEAP_PAGE 2
 #include <string>
 #include <map>
 #include <unordered_map>
@@ -111,6 +111,7 @@ private:
   // map for indexes: table_name->index_name->indexes
   [[maybe_unused]] std::unordered_map<std::string, std::unordered_map<std::string, index_id_t>> index_names_;
   [[maybe_unused]] std::unordered_map<index_id_t, IndexInfo *> indexes_;
+
   // memory heap
   MemHeap *heap_;
 };

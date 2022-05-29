@@ -28,9 +28,9 @@ public:
 
   inline Schema *GetSchema() const { return schema_; }
 
-
+TableMetadata() = default;
 private:
-  TableMetadata();
+  
 
   TableMetadata(table_id_t table_id, std::string table_name, page_id_t root_page_id, TableSchema *schema);
 
@@ -53,12 +53,14 @@ public:
   }
 
   ~TableInfo() {
+
     delete heap_;
   }
 
   void Init(TableMetadata *table_meta, TableHeap *table_heap) {
     table_meta_ = table_meta;
     table_heap_ = table_heap;
+
   }
 
   inline TableHeap *GetTableHeap() const { return table_heap_; }
@@ -80,6 +82,7 @@ private:
   TableMetadata *table_meta_;
   TableHeap *table_heap_;
   MemHeap *heap_; /** store all objects allocated in table_meta and table heap */
+
 };
 
 #endif //MINISQL_TABLE_H

@@ -15,8 +15,8 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Init(page_id_t page_id, page_id_t parent_id
   //this->page_id_ = page_id;
   this->SetPageId(page_id);
   this->SetParentPageId(parent_id);
-  this->SetMaxSize(INTERNAL_PAGE_SIZE);
-  //  this->SetMaxSize(4);
+  // this->SetMaxSize(INTERNAL_PAGE_SIZE);
+   this->SetMaxSize(4);
   this->SetSize(0);
   this->SetPageType(IndexPageType::INTERNAL_PAGE);
   //this->page_type_ = IndexPageType::INTERNAL_PAGE;
@@ -336,6 +336,9 @@ class BPlusTreeInternalPage<GenericKey<32>, page_id_t, GenericComparator<32>>;
 template
 class BPlusTreeInternalPage<GenericKey<64>, page_id_t, GenericComparator<64>>;
 
+template
+class BPlusTreeInternalPage<GenericKey<128>, page_id_t, GenericComparator<128>>;
+
 template class BPlusTreeInternalPage<GenericKey<4>, RowId, GenericComparator<4>>;
 
 template class BPlusTreeInternalPage<GenericKey<8>, RowId, GenericComparator<8>>;
@@ -345,3 +348,5 @@ template class BPlusTreeInternalPage<GenericKey<16>, RowId, GenericComparator<16
 template class BPlusTreeInternalPage<GenericKey<32>, RowId, GenericComparator<32>>;
 
 template class BPlusTreeInternalPage<GenericKey<64>, RowId, GenericComparator<64>>;
+
+template class BPlusTreeInternalPage<GenericKey<128>, RowId, GenericComparator<128>>;
