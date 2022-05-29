@@ -15,7 +15,7 @@ TypeId GetTypeId(const char *str) {
       return kTypeInt;
     case 2:
       return kTypeFloat;
-    case 3:
+    case 4:
       return kTypeChar;
     default:
       break;
