@@ -85,7 +85,12 @@ bool TableHeap::UpdateTuple(const Row &row, const RowId &rid, Transaction *txn) 
   TablePage *table_page_ptr = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(page_id));
   buffer_pool_manager_->UnpinPage(page_id, true);
   Row temp_row(rid);
-  return table_page_ptr->UpdateTuple(row, &temp_row, schema_, txn, lock_manager_, log_manager_);
+  int res =  table_page_ptr->UpdateTuple(row, &temp_row, schema_, txn, lock_manager_, log_manager_);
+  if(res == 1) return true;
+  if(res == 0) return false;
+  this->MarkDelete(row.GetRowId(),txn);
+  Row another_temp(row);
+  return this->InsertTuple(another_temp,txn);
 }
 
 void TableHeap::ApplyDelete(const RowId &rid, Transaction *txn) {
