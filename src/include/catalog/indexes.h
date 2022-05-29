@@ -81,7 +81,7 @@ public:
   }
 
   ~IndexInfo() {
-    
+    this->index_->Destroy();
     delete heap_;
   }
 

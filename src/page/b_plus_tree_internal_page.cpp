@@ -268,6 +268,22 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveFirstToEndOf(BPlusTreeInternalPage *rec
   buffer_pool_manager->UnpinPage(value_[GetSize()]);
   recipient->IncreaseSize(-1);
 }
+INDEX_TEMPLATE_ARGUMENTS
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::destroy(BufferPoolManager* buffer_pool_manager){
+  std::vector<page_id_t> children_page_id_;
+  buffer_pool_manager->UnpinPage(this->GetPageId());
+  for(int i=0;i<this->GetSize()+1;++i){
+    children_page_id_.push_back(this->ValueAt(i));
+  }
+  buffer_pool_manager->DeletePage(this->GetPageId());
+  for(auto &it:children_page_id_){
+    B_PLUS_TREE_INTERNAL_PAGE_TYPE* tree_page = reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>(buffer_pool_manager->FetchPage(it)->GetData());
+    if(tree_page->IsLeafPage()){
+      buffer_pool_manager->UnpinPage(it);
+      buffer_pool_manager->DeletePage(it);
+    }else tree_page->destroy(buffer_pool_manager);
+  }
+}
 
 /* Append an entry at the end.
  * Since it is an internal page, the moved entry(page)'s parent needs to be updated.

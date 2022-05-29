@@ -55,16 +55,12 @@ dberr_t ExecuteEngine::Execute(pSyntaxNode ast, ExecuteContext *context) {
 }
 
 dberr_t ExecuteEngine::ExecuteCreateDatabase(pSyntaxNode ast, ExecuteContext *context) {
-#ifdef ENABLE_EXECUTE_DEBUG
-  LOG(INFO) << "ExecuteCreateDatabase" << std::endl;
-#endif
-  return DB_FAILED;
+  DBStorageEngine* new_engine = new DBStorageEngine(ast->val_,true,2048);
+  this->dbs_.insert(std::pair<std::string,DBStorageEngine*>(ast->val_,new_engine));
+  return DB_SUCCESS;
 }
 
 dberr_t ExecuteEngine::ExecuteDropDatabase(pSyntaxNode ast, ExecuteContext *context) {
-#ifdef ENABLE_EXECUTE_DEBUG
-  LOG(INFO) << "ExecuteDropDatabase" << std::endl;
-#endif
   return DB_FAILED;
 }
 

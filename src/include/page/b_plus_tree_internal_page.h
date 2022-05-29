@@ -44,7 +44,7 @@ public:
   int InsertNodeAfter(const page_id_t &old_value, const KeyType &new_key, const page_id_t &new_value);
 
   void Remove(int index);
-
+  void destroy(BufferPoolManager* buffer_pool_manager);
   page_id_t RemoveAndReturnOnlyChild();
 
   // Split and Merge utility methods

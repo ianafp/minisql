@@ -54,7 +54,7 @@ Page *BufferPoolManager::FetchPage(page_id_t page_id) {
       if (!replacer_->insert(victim)) {
         // replacer is full , replace instead
         frame_id_t local_temp;
-        replacer_->Victim(&local_temp);
+        if(!replacer_->Victim(&local_temp)) return nullptr;
         // write back if necessary
         if (pages_[local_temp].IsDirty()) {
           // dirty page, write back

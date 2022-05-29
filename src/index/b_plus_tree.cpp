@@ -23,7 +23,21 @@ BPLUSTREE_TYPE::BPlusTree(index_id_t index_id, BufferPoolManager *buffer_pool_ma
 }
 
 INDEX_TEMPLATE_ARGUMENTS
-void BPLUSTREE_TYPE::Destroy() {}
+void BPLUSTREE_TYPE::Destroy() {
+  // delete in the root page
+  IndexRootsPage* root_page_index_ = reinterpret_cast<IndexRootsPage*>(buffer_pool_manager_->FetchPage(INDEX_ROOTS_PAGE_ID)->GetData());
+  buffer_pool_manager_->UnpinPage(INDEX_ROOTS_PAGE_ID);
+  root_page_index_->Delete(this->index_id_);
+  // delete tree
+  if(this->root_page_id_==INVALID_PAGE_ID) return;
+  BPlusTreePage* tree_page_ = reinterpret_cast<BPlusTreePage*>(buffer_pool_manager_->FetchPage(this->root_page_id_)->GetData());
+  if(tree_page_->IsLeafPage()){
+    buffer_pool_manager_->UnpinPage(root_page_id_);
+    buffer_pool_manager_->DeletePage(root_page_id_);
+  }else {
+    reinterpret_cast<InternalPage*>(tree_page_)->destroy(buffer_pool_manager_);
+  }
+}
 
 /*
  * Helper function to decide whether current b+tree is empty
@@ -668,6 +682,8 @@ void BPLUSTREE_TYPE::ToGraph(BPlusTreePage *page, BufferPoolManager *bpm, std::o
       }
     }
   }
+
+
   bpm->UnpinPage(page->GetPageId());
 }
 
