@@ -24,58 +24,48 @@ Type *Type::type_singletons_[] = {
 };
 
 uint32_t Type::SerializeTo(const Field &field, char *buf) const {
-  ASSERT(false, "SerializeTo not implemented.");
-  return 0;
+  return SerializeTo(field,buf);
 }
 
 uint32_t Type::DeserializeFrom(char *storage, Field **field, bool is_null, MemHeap *heap) const {
-  ASSERT(false, "DeserializeFrom not implemented.");
-  return 0;
+  return DeserializeFrom(storage,field,is_null,heap);
 }
 
 uint32_t Type::GetSerializedSize(const Field &field, bool is_null) const {
-  ASSERT(false, "GetSerializedSize not implemented.");
-  return 0;
+  if(is_null) return 0;
+  return field.GetSerializedSize();
 }
 
 const char *Type::GetData(const Field &val) const {
-  ASSERT(false, "GetData not implemented.");
-  return nullptr;
+  return val.GetData();
 }
 
 uint32_t Type::GetLength(const Field &val) const {
-  ASSERT(false, "GetLength not implemented.");
-  return 0;
+  return val.GetLength();
 }
 
 CmpBool Type::CompareEquals(const Field &left, const Field &right) const {
-  ASSERT(false, "CompareEquals not implemented.");
-  return kNull;
+    return CompareEquals(left,right);
 }
 
 CmpBool Type::CompareNotEquals(const Field &left, const Field &right) const {
-  ASSERT(false, "CompareNotEquals not implemented.");
-  return kNull;
+  return CompareNotEquals(left,right);
 }
 
 CmpBool Type::CompareLessThan(const Field &left, const Field &right) const {
-  ASSERT(false, "CompareLessThan not implemented.");
-  return kNull;
+  return CompareLessThan(left,right);
 }
 
 CmpBool Type::CompareLessThanEquals(const Field &left, const Field &right) const {
-  ASSERT(false, "CompareLessThanEquals not implemented.");
-  return kNull;
+  return CompareLessThanEquals(left,right);
 }
 
 CmpBool Type::CompareGreaterThan(const Field &left, const Field &right) const {
-  ASSERT(false, "CompareGreaterThan not implemented.");
-  return kNull;
+  return CompareGreaterThan(left,right);
 }
 
 CmpBool Type::CompareGreaterThanEquals(const Field &left, const Field &right) const {
-  ASSERT(false, "CompareGreaterThanEquals not implemented.");
-  return kNull;
+  return CompareGreaterThanEquals(left,right);
 }
 
 // ==============================TypeInt=================================

@@ -303,13 +303,25 @@ dberr_t ExecuteEngine::ExecuteCreateTable(pSyntaxNode ast, ExecuteContext *conte
         // Crisis check (TO DO)
         // bool IdentifierCollided = false;
         // Insertion
-        ColumnList.push_back(new Column (
-          std::string(astCol->child_->val_),        // Name
-          GetTypeId(astCol->child_->next_->val_),   // Type
-          __Index++,                                // Index, start from 0
-          true,                                     // Nullable
-          false                                     // Unique
-        ));         // TO DO: find out whether the syntax tree process "nullable" and "unique"
+        TypeId NewColumnType = GetTypeId(astCol->child_->next_->val_);
+        if (NewColumnType == kTypeChar) {
+          ColumnList.push_back(new Column(
+            std::string(astCol->child_->val_),  // Name
+            NewColumnType,                      // Type
+            atoi(astCol->child_->next_->child_->val_),  // Length
+            __Index++,                          // Index, start from 0
+            true,                               // Nullable
+            false                               // Unique
+          ));  // TO DO: find out whether the syntax tree process "nullable" and "unique"
+        } else {
+          ColumnList.push_back(new Column(
+            std::string(astCol->child_->val_),  // Name
+            NewColumnType,                      // Type
+            __Index++,                          // Index, start from 0
+            true,                               // Nullable
+            false                               // Unique
+          ));  // TO DO: find out whether the syntax tree process "nullable" and "unique"
+        }
       
       } else if (astCol->type_ == kNodeColumnList) {
         
@@ -458,7 +470,7 @@ dberr_t ExecuteEngine::ExecuteCreateIndex(pSyntaxNode ast, ExecuteContext *conte
   auto NewIndexName = std::string(astIden->val_);
 
   // Para 2: Table identifier
-  astIden = ast->next_;
+  astIden = astIden->next_;
   if (astIden->type_ != kNodeIdentifier) {
     printf("Invalid table identifier.\n");
     return DB_FAILED;
@@ -466,7 +478,7 @@ dberr_t ExecuteEngine::ExecuteCreateIndex(pSyntaxNode ast, ExecuteContext *conte
   auto TableName = std::string(astIden->val_);
 
   // Para 3: Column list
-  astIden = ast->next_;
+  astIden = astIden->next_;
   auto astCol = astIden->child_;    // Column Identifiers
   std::vector<std::string> NewIndexColumns;
   while (astCol) {
