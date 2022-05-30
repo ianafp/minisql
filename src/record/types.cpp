@@ -37,7 +37,16 @@ uint32_t Type::GetSerializedSize(const Field &field, bool is_null) const {
 }
 
 const char *Type::GetData(const Field &val) const {
-  return val.GetData();
+  std::string str("");
+  switch(val.type_id_){
+    case TypeId::kTypeInt : str+=val.value_.integer_;break;
+    case TypeId::kTypeFloat: str+=val.value_.float_;break;
+    case TypeId::kTypeChar: str += val.value_.chars_;break;
+    default: assert(false);
+  }
+  char *res = new char[str.length()+1];
+  memcpy(res,(char*)&str[0],str.length()+1);
+  return res;
 }
 
 uint32_t Type::GetLength(const Field &val) const {

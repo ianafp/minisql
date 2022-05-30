@@ -39,6 +39,7 @@ TableIterator &TableIterator::operator++() {
   page_id_t page_id = content->GetRowId().GetPageId();
   // uint32_t slot_num = content->GetRowId().GetSlotNum();
   TablePage* page_ptr = reinterpret_cast<TablePage*>(buffer_pool_manager_->FetchPage(page_id));
+  buffer_pool_manager_->UnpinPage(page_id);
   assert(page_ptr!=nullptr);
   RowId next_row_id;
   while(!page_ptr->GetNextTupleRid(content->GetRowId(),&next_row_id)){
@@ -49,10 +50,16 @@ TableIterator &TableIterator::operator++() {
       txn_ = nullptr;
       return *this;
     }
-    page_ptr = reinterpret_cast<TablePage*>(buffer_pool_manager_->FetchPage(page_id));
+    page_ptr = reinterpret_cast<TablePage*>(buffer_pool_manager_->FetchPage(page_id)->GetData());
+    buffer_pool_manager_->UnpinPage(page_id);
+    next_row_id.Set(page_id,-1);
   }
   // get next row id
-  page_ptr->GetTuple(content,table_heap_->schema_,txn_,table_heap_->lock_manager_);
+  content->SetRowId(next_row_id);
+  if(!page_ptr->GetTuple(content,table_heap_->schema_,txn_,table_heap_->lock_manager_)){
+    content = nullptr;
+    txn_ = nullptr;
+  }
   return *this;
 }
 

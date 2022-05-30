@@ -21,6 +21,7 @@ uint32_t Row::SerializeTo(char *buf, Schema *schema) const {
   {
     MACH_WRITE_TO(bool,buf+offset,fields_[i]->IsNull());
     offset += sizeof(bool);
+    // if(fields_[i]->IsNull()) continue;
     offset += fields_[i]->SerializeTo(buf+offset);
   }
 
@@ -40,7 +41,7 @@ uint32_t Row::DeserializeFrom(char *buf, Schema *schema) {
   for (uint32_t i = 0; i < column_count; ++i) {
     bool is_null = MACH_READ_FROM(bool,buf+offset);
     offset += sizeof(bool);
-    if(is_null) continue;
+    // if(is_null) continue;
     const Column *temp = schema->GetColumn(i);
     offset += this->fields_[i]->DeserializeFrom(buf + offset, temp->GetType(), &fields_[i],is_null,
     heap_);

@@ -38,6 +38,7 @@ bool TablePage::InsertTuple(Row &row, Schema *schema, Transaction *txn,
 #ifdef ENABLE_BPM_DEBUG
   LOG(INFO)<<"GetFreeSpacePointer: "<<GetFreeSpacePointer()<<std::endl;
 #endif
+  row.SetRowId(RowId(this->GetPageId(),i));
   uint32_t __attribute__((unused)) write_bytes = row.SerializeTo(GetData() + GetFreeSpacePointer(), schema);
   ASSERT(write_bytes = serialized_size, "Unexpected behavior in row serialize.");
 // assert(false);

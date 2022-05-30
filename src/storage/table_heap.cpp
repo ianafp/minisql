@@ -7,36 +7,27 @@ bool TableHeap::InsertTuple(Row &row, Transaction *txn) {
   page_id_t temp_page_id = this->first_page_id_;
   // assert(false);
   TablePage *table_page_ptr = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(first_page_id_));
+  buffer_pool_manager_->UnpinPage(first_page_id_);
   assert(table_page_ptr!=nullptr);
   // search an availble table page
   if(table_page_ptr->GetPrevPageId()!=INVALID_PAGE_ID){
     table_page_ptr->Init(temp_page_id,INVALID_PAGE_ID,log_manager_,txn);
   }
   while (1) {
-    // assert(false);
-#ifdef ENABLE_BPM_DEBUG
-      LOG(INFO) << "page id: "<<temp_page_id<<"\n";
-      LOG(INFO) << "page id: " <<table_page_ptr->GetPageId()<<"\n";
-#endif
+
     // try to insert
     if(table_page_ptr->InsertTuple(row,schema_,txn,lock_manager_,log_manager_)) break;
     // assert(false);
-#ifdef ENABLE_BPM_DEBUG
-      LOG(INFO) <<"insert to this page false"<<"\n";
-#endif
+
     // check next page
     if (table_page_ptr->GetNextPageId() == INVALID_PAGE_ID) {
-#ifdef ENABLE_BPM_DEBUG
-      LOG(INFO) << "NO AVAILABLE TABLE PAGE!\n";
-#endif
+
       // allocate new page
       page_id_t new_page_id;
       TablePage *new_page_ptr = reinterpret_cast<TablePage*>(buffer_pool_manager_->NewPage(new_page_id));
       // assert(new_page_ptr!=nullptr);
       if (!new_page_ptr) {
-#ifdef ENABLE_BPM_DEBUG
-        LOG(ERROR) << "FAIL TO ALLOCATE NEW PAGE!\n";
-#endif
+
         return false;
       }
       table_page_ptr->SetNextPageId(new_page_id);
@@ -44,9 +35,7 @@ bool TableHeap::InsertTuple(Row &row, Transaction *txn) {
       // insert in new page
       // assert(false);
       if (!new_page_ptr->InsertTuple(row, schema_, txn, lock_manager_, log_manager_)) {
-#ifdef ENABLE_BPM_DEBUG
-        LOG(ERROR) << "UNEXPECTED ERROR!\n";
-#endif
+
         assert(false);
       }
       buffer_pool_manager_->UnpinPage(new_page_id, false);
@@ -56,11 +45,13 @@ bool TableHeap::InsertTuple(Row &row, Transaction *txn) {
     // assert(false);
     page_id_t temp_id = temp_page_id;
     temp_page_id = table_page_ptr->GetNextPageId();
-    table_page_ptr = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(temp_page_id));
-    buffer_pool_manager_->UnpinPage(temp_id,true);
+    table_page_ptr = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(temp_page_id)->GetData());
+    buffer_pool_manager_->UnpinPage(temp_page_id);
+    buffer_pool_manager_->UnpinPage(temp_id);
   }
   // write in
-  return table_page_ptr->InsertTuple(row, schema_, txn, lock_manager_, log_manager_);
+  return true;
+  // return table_page_ptr->InsertTuple(row, schema_, txn, lock_manager_, log_manager_);
   // return false;
 }
 
@@ -145,7 +136,7 @@ TableIterator TableHeap::Begin(Transaction *txn)
     }
     else break;
   }
-  if(temp.Get()==INVALID_ROWID.Get()) return TableIterator(nullptr,this,txn);
+  if(temp.Get()==INVALID_ROWID.Get()) return TableIterator(nullptr,this,nullptr);
   Row* row_ = new Row(temp);
   // table_page_ptr->GetTuple(row_,schema_,txn,lock_manager_);
   table_page_ptr->GetTuple(row_,schema_,txn,lock_manager_);

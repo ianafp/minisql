@@ -629,6 +629,7 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
   } else {
 
     // SELECT WITHOUT ANY CONDITION
+    
     auto TableEnd = __Ti->GetTableHeap()->End();
     for (; CurrentIterator != TableEnd; ++CurrentIterator) {
       

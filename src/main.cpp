@@ -18,6 +18,7 @@ void InitGoogleLog(char *argv) {
 }
 
 void InputCommand(char *input, const int len) {
+
   memset(input, 0, len);
   printf("minisql > ");
   int i = 0;
@@ -30,6 +31,7 @@ void InputCommand(char *input, const int len) {
 }
 
 int main(int argc, char **argv) {
+  freopen("data.txt","r",stdin);
   InitGoogleLog(argv[0]);
   // command buffer
   const int buf_size = 1024;
@@ -71,7 +73,7 @@ int main(int argc, char **argv) {
 
     ExecuteContext context;
     engine.Execute(MinisqlGetParserRootNode(), &context);
-    sleep(1);
+    // sleep(1);
 
     // clean memory after parse
     MinisqlParserFinish();
