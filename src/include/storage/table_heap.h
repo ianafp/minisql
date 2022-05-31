@@ -20,9 +20,9 @@ class TableHeap {
   static TableHeap *Create(BufferPoolManager *buffer_pool_manager, page_id_t first_page_id, Schema *schema,
                            LogManager *log_manager, LockManager *lock_manager, MemHeap *heap) {
     void *buf = heap->Allocate(sizeof(TableHeap));
-    TablePage *first_page = reinterpret_cast<TablePage *>(buffer_pool_manager->FetchPage(first_page_id)->GetData());
-    buffer_pool_manager->UnpinPage(first_page_id);
-    first_page->Init(first_page_id, INVALID_PAGE_ID, log_manager, nullptr);
+    // TablePage *first_page = reinterpret_cast<TablePage *>(buffer_pool_manager->FetchPage(first_page_id)->GetData());
+    // buffer_pool_manager->UnpinPage(first_page_id);
+    // first_page->Init(first_page_id, INVALID_PAGE_ID, log_manager, nullptr);
     return new (buf) TableHeap(buffer_pool_manager, first_page_id, schema, log_manager, lock_manager);
   }
 

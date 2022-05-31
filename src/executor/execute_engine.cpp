@@ -1,6 +1,14 @@
 #include <cstdio>
+#include <fstream>
 #include "executor/execute_engine.h"
 #include "glog/logging.h"
+
+extern "C" {
+int yyparse(void);
+//FILE *yyin;
+#include "parser/minisql_lex.h"
+#include "parser/parser.h"
+}
 
 // ============ < FUNCTION > ============
 
@@ -125,7 +133,58 @@ void __Unflod__SyntaxTree(pSyntaxNode ast, int depth) {
 
 // ============ < EXECUTOR > ============
 
-ExecuteEngine::ExecuteEngine() { current_db_ = ""; }
+ExecuteEngine::ExecuteEngine() { 
+  current_db_ = "";
+  // Load databases
+  ExecuteContext __Context;
+  ExecuteLoadDatabase(&__Context);
+}
+
+// Database list save&load
+
+dberr_t ExecuteEngine::ExecuteLoadDatabase(ExecuteContext *context) {
+  // Load database list from file
+  char DatabaseName[64];
+  ifstream ListFile("Minisql.dblist");
+
+  if (ListFile.is_open()) {
+    while (!ListFile.eof()) {
+      ListFile.getline(DatabaseName, 63);
+      std::string DatabaseNameString = std::string(DatabaseName);
+      if (DatabaseNameString.length() < 1) continue;
+      dbs_.insert(
+        std::pair<std::string, DBStorageEngine *>(
+          DatabaseNameString, 
+          new DBStorageEngine(DatabaseNameString, false)
+      ));
+    }
+    if (dbs_.size() < 1)
+      printf("MiniSQL: No databases available now.\n");
+    else
+      printf("Successfully load %lu database(s) from disk.\n", dbs_.size());
+  } else {
+    printf("MiniSQL: No databases available now.\n");
+    return DB_FAILED;
+  }
+  return DB_SUCCESS;
+}
+
+dberr_t ExecuteEngine::ExecuteSaveDatabase(ExecuteContext *context) {
+  // Save database name list to file
+  ofstream ListFile("Minisql.dblist");
+
+  if (ListFile.is_open()) {
+    for (auto pa : dbs_) {
+      ListFile << pa.first;
+    }
+    ListFile.close();
+  } else {
+    printf("Failed to write database list to disk.\n");
+    return DB_FAILED;
+  }
+
+  return DB_SUCCESS;
+}
 
 dberr_t ExecuteEngine::Execute(pSyntaxNode ast, ExecuteContext *context) {
   if (ast == nullptr) {
@@ -577,17 +636,30 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
   uint32_t __Idx;   // Temp
   std::vector<uint32_t> SelectIndexes;
   // Find ..
-  for (auto ColumnStr : SelectColumnNames) {
-    FindColumnReturn =
-      __Ti->GetSchema()->GetColumnIndex(ColumnStr, __Idx);
-    if (FindColumnReturn != DB_SUCCESS) {
-      printf("Column %s not found!\n", ColumnStr.c_str());
-      return DB_FAILED;
+  if (SelectColumnNames.size() > 0) {
+
+    for (auto ColumnStr : SelectColumnNames) {
+      FindColumnReturn = __Ti->GetSchema()->GetColumnIndex(ColumnStr, __Idx);
+      if (FindColumnReturn != DB_SUCCESS) {
+        printf("Column %s not found!\n", ColumnStr.c_str());
+        return DB_FAILED;
+      }
+      SelectIndexes.push_back(__Idx);
     }
-    SelectIndexes.push_back(__Idx);
+  } else {
+
+    // Select all columns
+    std::vector<Column *> __Col = __Ti->GetSchema()->GetColumns();
+    for (uint32_t i = 0; i < __Col.size(); ++i) {
+      SelectColumnNames.push_back(__Col[i]->GetName());
+      SelectIndexes.push_back(i);
+    }
+    printf("\n");
   }
 
   // Print title
+  for (uint32_t i = 0; i < SelectColumnNames.size() * 12 + 2; ++i) printf("=");
+  printf("\n");
   for (auto __Str : SelectColumnNames) printf("%12s", __Str.c_str());
   printf("\n");
 
@@ -612,14 +684,8 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
       if (SelectContext.condition_) {
 
         // Select this row:
-        if (SelectIndexes.size() > 0) {
-          for (auto i : SelectIndexes) {
-            printf("%12s", CurrentIterator->GetField(i)->GetData());
-          }
-        } else {
-          for (unsigned int i = 0; i < __Ti->GetSchema()->GetColumnCount(); ++i) {
-            printf("%12s", CurrentIterator->GetField(i)->GetData());
-          }
+        for (auto i : SelectIndexes) {
+          printf("%12s", CurrentIterator->GetField(i)->GetData());
         }
         printf("\n");
       }
@@ -633,19 +699,17 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
     auto TableEnd = __Ti->GetTableHeap()->End();
     for (; CurrentIterator != TableEnd; ++CurrentIterator) {
       
-      if (SelectIndexes.size() > 0) {
-        for (auto i : SelectIndexes) {
-          printf("%12s", CurrentIterator->GetField(i)->GetData());
-        }
-      } else {
-        for (unsigned int i = 0; i < __Ti->GetSchema()->GetColumnCount(); ++i) {
-          printf("%12s", CurrentIterator->GetField(i)->GetData());
-        }
+      for (auto i : SelectIndexes) {
+        printf("%12s", CurrentIterator->GetField(i)->GetData());
       }
       printf("\n");
     }
     // SELECT END
   }
+
+  // Print buttom
+  for (uint32_t i = 0; i < SelectColumnNames.size() * 12 + 2; ++i) printf("=");
+  printf("\n");
 
   return DB_SUCCESS;
 }
@@ -934,9 +998,74 @@ dberr_t ExecuteEngine::ExecuteExecfile(pSyntaxNode ast, ExecuteContext *context)
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "[ExecuteExecfile]" << std::endl;
 #endif
-  ASSERT(current_db_ != "", "Never specified any database yet.");
-  __Unflod__SyntaxTree(ast, 0);
-  return DB_FAILED;
+  char ExecuteCommand[1024];
+  ifstream ExecuteFile(ast->child_->val_);
+  
+  if (ExecuteFile.is_open()) {
+
+    char ch;
+    int i;
+    while (!ExecuteFile.eof()) {
+
+      // "I think you just copy from main.cpp without doubt."
+      // "You are right."
+      i = 0;
+      while ((ch = ExecuteFile.get()) != ';') {
+        if (ch == EOF) {
+          printf("Unexpected end of execute file.\n");
+          return DB_FAILED;
+        }
+        ExecuteCommand[i++] = ch;
+      }
+      ExecuteCommand[i] = ch;       // ;
+      ExecuteCommand[i + 1] = '\0'; // You can not image that how pageantry bugs this stupid mistake cause ..
+      ExecuteFile.get();            // remove enter
+      printf("%s\n", ExecuteCommand);
+      
+      // create buffer for sql input
+      YY_BUFFER_STATE bp = yy_scan_string(ExecuteCommand);
+      if (bp == nullptr) {
+        LOG(ERROR) << "Failed to create yy buffer state when execute from file." << std::endl;
+        return DB_FAILED;
+      }
+      yy_switch_to_buffer(bp);
+
+      // init parser module
+      MinisqlParserInit();
+      // parse
+      yyparse();
+      if (MinisqlParserGetError()) {
+        // error
+        printf("%s\n", MinisqlParserGetErrorMessage());
+      } else {
+#ifdef ENABLE_PARSER_DEBUG
+        printf("[INFO] Sql syntax parse ok!\n");
+        SyntaxTreePrinter printer(MinisqlGetParserRootNode());
+        printer.PrintTree(syntax_tree_file_mgr[syntax_tree_id++]);
+#endif
+      }
+
+      // EXECUTE
+      ExecuteContext ExecfileContext;
+      Execute(MinisqlGetParserRootNode(), &ExecfileContext);
+
+      // clean memory after parse
+      MinisqlParserFinish();
+      yy_delete_buffer(bp);
+      yylex_destroy();
+
+      // quit condition
+      if (ExecfileContext.flag_quit_) {
+        context->flag_quit_ = true;
+        break;
+      }
+    }
+
+  } else {
+    printf("Failed to load execute file from disk.\n");
+    return DB_FAILED;
+  }
+  return DB_SUCCESS;
 }
 
 dberr_t ExecuteEngine::ExecuteQuit(pSyntaxNode ast, ExecuteContext *context) {

@@ -31,7 +31,7 @@ void InputCommand(char *input, const int len) {
 }
 
 int main(int argc, char **argv) {
-  freopen("data.txt","r",stdin);
+  // freopen("data.txt","r",stdin);
   InitGoogleLog(argv[0]);
   // command buffer
   const int buf_size = 1024;
