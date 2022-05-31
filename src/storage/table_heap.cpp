@@ -6,7 +6,7 @@ bool TableHeap::InsertTuple(Row &row, Transaction *txn) {
 
   page_id_t temp_page_id = this->first_page_id_;
   // assert(false);
-  TablePage *table_page_ptr = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(first_page_id_));
+  TablePage *table_page_ptr = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(first_page_id_)->GetData());
   buffer_pool_manager_->UnpinPage(first_page_id_);
   assert(table_page_ptr!=nullptr);
   // search an availble table page
@@ -38,7 +38,7 @@ bool TableHeap::InsertTuple(Row &row, Transaction *txn) {
 
         assert(false);
       }
-      buffer_pool_manager_->UnpinPage(new_page_id, false);
+      buffer_pool_manager_->UnpinPage(new_page_id);
       return true;
     }
     // search next page
@@ -127,10 +127,15 @@ bool TableHeap::GetTuple(Row *row, Transaction *txn) {
 TableIterator TableHeap::Begin(Transaction *txn) 
 { 
   page_id_t page_id = first_page_id_;
-  TablePage* table_page_ptr;
+  TablePage* table_page_ptr = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(page_id)->GetData());
+  buffer_pool_manager_->UnpinPage(first_page_id_,false);
   RowId temp;
+  if(table_page_ptr->GetPrevPageId()!=INVALID_PAGE_ID){
+    table_page_ptr -> Init(first_page_id_,INVALID_PAGE_ID,this->log_manager_,txn);
+  }
   while(page_id!=INVALID_PAGE_ID){
-    table_page_ptr = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(page_id));
+    table_page_ptr = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(page_id)->GetData());
+    buffer_pool_manager_->UnpinPage(page_id);
     if(!table_page_ptr->GetFirstTupleRid(&temp)){
         page_id = table_page_ptr->GetNextPageId();
     }

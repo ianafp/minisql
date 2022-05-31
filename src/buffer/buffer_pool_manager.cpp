@@ -161,6 +161,7 @@ bool BufferPoolManager::UnpinPage(page_id_t page_id, bool is_dirty) {
 #ifdef ENABLE_BPM_DEBUG
       LOG(WARNING) << "IN FUNCTION unpinpage:" << std::endl;
 #endif
+  // is_dirty = true;
   std::unordered_map<page_id_t,frame_id_t>::iterator it = page_table_.find(page_id);
   if(it==page_table_.end()) {
 #ifdef ENABLE_BPM_DEBUG

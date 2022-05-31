@@ -139,7 +139,7 @@ page_id_t DiskManager::MapPageId(page_id_t logical_page_id) {
 #ifdef ENABLE_BPM_DEBUG
       LOG(ERROR) << "logical: "<<logical_page_id<<" physical: "<< 2+extent_id+extent_id*extent_capacity+page_id_in_extent<< std::endl; 
 #endif
-  return 2+extent_id+extent_id*extent_capacity+page_id_in_extent;
+  return 2 + extent_id * (1 + extent_capacity) + page_id_in_extent;
 }
 
 long signed int DiskManager::GetFileSize(const std::string &file_name) {

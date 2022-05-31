@@ -303,7 +303,15 @@ dberr_t ExecuteEngine::ExecuteUseDatabase(pSyntaxNode ast, ExecuteContext *conte
     return DB_FAILED;
   }
 
-  current_db_ = std::string(astIden->val_);
+  // Check database
+  std::string DatabaseName = std::string(astIden->val_);
+  if (dbs_.find(DatabaseName) != dbs_.end()) {
+    current_db_ = DatabaseName;
+  } else {
+    printf("Database %s not found.\n", DatabaseName.c_str());
+    return DB_FAILED;
+  }
+  
   return DB_SUCCESS;
 }
 
@@ -447,13 +455,16 @@ dberr_t ExecuteEngine::ExecuteDropTable(pSyntaxNode ast, ExecuteContext *context
     return DB_FAILED;
   }
   auto astIdenStr = std::string(astIden->val_);
-
+  
   dberr_t DropReturn =
     dbs_[current_db_]->catalog_mgr_->
     DropTable(astIdenStr);
 
   if (DropReturn == DB_SUCCESS) {
     return DB_SUCCESS;
+  } else if (DropReturn == DB_TABLE_NOT_EXIST) {
+    printf("Table %s not found.\n", astIdenStr.c_str());
+    return DB_FAILED;
   } else {
     printf("Failed to drop table %s in database %s.\n", astIdenStr.c_str(), current_db_.c_str());
     return DB_FAILED;
@@ -623,12 +634,17 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
   } else if (ast->child_->type_ == kNodeAllColumns) {
     SelectColumnNames.clear();  // size 0 => All columns
   } else {
-    printf("Unexpected columns!.\n");
+    printf("Unexpected column parameters!\n");
     return DB_FAILED;
   }
   
   TableInfo *__Ti;
-  dbs_[current_db_]->catalog_mgr_->GetTable(ast->child_->next_->val_, __Ti);
+  dberr_t GetTableReturn =
+    dbs_[current_db_]->catalog_mgr_->GetTable(ast->child_->next_->val_, __Ti);
+  if (GetTableReturn != DB_SUCCESS) {
+    printf("Table %s not found!\n", ast->child_->next_->val_);
+    return DB_FAILED;
+  }
   auto CurrentIterator = __Ti->GetTableHeap()->Begin(nullptr);
 
   // Generate index array
@@ -658,58 +674,42 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
   }
 
   // Print title
-  for (uint32_t i = 0; i < SelectColumnNames.size() * 12 + 2; ++i) printf("=");
-  printf("\n");
+  printf("+");
+  for (uint32_t i = 0; i < SelectColumnNames.size() * 12; ++i) printf("-");
+  printf("+\n|");
   for (auto __Str : SelectColumnNames) printf("%12s", __Str.c_str());
-  printf("\n");
+  printf("|\n+");
+  for (uint32_t i = 0; i < SelectColumnNames.size() * 12; ++i) printf("-");
+  printf("+\n");
 
   auto ConditionRoot = ast->child_->next_->next_;
-  if (ConditionRoot && ConditionRoot->type_ == kNodeConditions) {
 
-    ConditionRoot = ConditionRoot->child_;
-
-    // SELECT
-    dberr_t LogicReturn; 
-    auto TableEnd = __Ti->GetTableHeap()->End();
-    for (; CurrentIterator != TableEnd; ++CurrentIterator) {
-      
-      ExecuteContext SelectContext;
-      LogicReturn =
-        LogicConditions(ConditionRoot, &SelectContext, *CurrentIterator, __Ti->GetSchema());
-      if (LogicReturn != DB_SUCCESS) {
-        printf("Failed to analyze logic conditions.\n");
-        return DB_FAILED;
-      }
-
-      if (SelectContext.condition_) {
-
-        // Select this row:
-        for (auto i : SelectIndexes) {
-          printf("%12s", CurrentIterator->GetField(i)->GetData());
-        }
-        printf("\n");
-      }
+  // SELECT
+  dberr_t LogicReturn;
+  auto TableEnd = __Ti->GetTableHeap()->End();
+  for (; CurrentIterator != TableEnd; ++CurrentIterator) {
+    ExecuteContext SelectContext;
+    LogicReturn = LogicConditions(ConditionRoot, &SelectContext, *CurrentIterator, __Ti->GetSchema());
+    if (LogicReturn != DB_SUCCESS) {
+      printf("Failed to analyze logic conditions.\n");
+      return DB_FAILED;
     }
-    // SELECT END
 
-  } else {
-
-    // SELECT WITHOUT ANY CONDITION
-    
-    auto TableEnd = __Ti->GetTableHeap()->End();
-    for (; CurrentIterator != TableEnd; ++CurrentIterator) {
-      
+    if (SelectContext.condition_) {
+      // Select this row:
+      printf("|");
       for (auto i : SelectIndexes) {
         printf("%12s", CurrentIterator->GetField(i)->GetData());
       }
-      printf("\n");
+      printf("|\n");
     }
-    // SELECT END
   }
+  // SELECT END
 
   // Print buttom
-  for (uint32_t i = 0; i < SelectColumnNames.size() * 12 + 2; ++i) printf("=");
-  printf("\n");
+  printf("+");
+  for (uint32_t i = 0; i < SelectColumnNames.size() * 12; ++i) printf("-");
+  printf("+\n");
 
   return DB_SUCCESS;
 }
@@ -731,36 +731,71 @@ dberr_t ExecuteEngine::ExecuteInsert(pSyntaxNode ast, ExecuteContext *context) {
   }
   auto TableName = std::string(astIden->val_);
   TableInfo *__Ti;
-  dbs_[current_db_]->catalog_mgr_->GetTable(TableName, __Ti);
+  dberr_t GetTableReturn = dbs_[current_db_]->catalog_mgr_->GetTable(TableName, __Ti);
+  if (GetTableReturn != DB_SUCCESS) {
+    printf("Table %s not found!\n", TableName.c_str());
+    return DB_FAILED;
+  }
+  auto TableColumns = __Ti->GetSchema()->GetColumns();
   
   // Construct row
   std::vector<Field> __Fields;
   if (ast->child_->next_->type_ == kNodeColumnValues) {
 
+    uint32_t ValueCount = 0;
+    TypeId ColumnType;
     auto astValue = ast->child_->next_->child_;
     // Get data from linked list
-    while (astValue) {
+    while (ValueCount < TableColumns.size()) {
 
-      switch (astValue->type_) {
-        case kNodeNumber:
-          if (isFloat(astValue->val_)) {
-            __Fields.push_back(Field(kTypeFloat, (float)atof(astValue->val_)));
-          } else {
-            __Fields.push_back(Field(kTypeInt, atoi(astValue->val_)));
-          }
-          break;
-        case kNodeString:
-          __Fields.push_back(Field(kTypeChar, astValue->val_, 
-            __Ti->GetSchema()->GetColumn(__Fields.size())->GetLength(), true));                 // manage_data: true => deep_copy
-          break;
-        case kNodeNull:
-          __Fields.push_back(Field(__Ti->GetSchema()->GetColumn(__Fields.size())->GetType()));  // Insert NULL
-          break;
-        default:
-          printf("Unexpected column value type.\n");
+      if (astValue) {
+
+        ColumnType = TableColumns[ValueCount]->GetType();
+        bool WrongType = false;
+        switch (astValue->type_) {
+          case kNodeNumber:
+            if (isFloat(astValue->val_)) {
+              if (ColumnType != kTypeFloat) WrongType = true;
+              __Fields.push_back(Field(kTypeFloat, (float)atof(astValue->val_)));
+            } else {
+              if (ColumnType != kTypeInt) WrongType = true;
+              __Fields.push_back(Field(kTypeInt, atoi(astValue->val_)));
+            }
+            break;
+          case kNodeString:
+            if (ColumnType != kTypeChar) WrongType = true;
+            __Fields.push_back(Field(
+              kTypeChar, 
+              astValue->val_,
+              __Ti->GetSchema()->GetColumn(__Fields.size())->GetLength(),
+              true
+            ));  // manage_data: true => deep_copy
+            break;
+          case kNodeNull:
+            __Fields.push_back(Field(__Ti->GetSchema()->GetColumn(__Fields.size())->GetType()));  // Insert NULL
+            break;
+          default:
+            printf("Unexpected column value type.\n");
+            return DB_FAILED;
+        }
+        
+        if (WrongType) {
+          printf("Value %u has a type different from table schema!\n", ValueCount);
           return DB_FAILED;
+        }
+
+      } else {
+        printf("Too few values to insert.\n");
+        return DB_FAILED;
       }
+      
+      ++ValueCount;
       astValue = astValue->next_;       // Next value
+    }
+
+    if (astValue) {
+      printf("Too many values to insert. Please check out statements and try again.\n");
+      return DB_FAILED;
     }
 
   } else {
@@ -771,7 +806,6 @@ dberr_t ExecuteEngine::ExecuteInsert(pSyntaxNode ast, ExecuteContext *context) {
   Row row = Row(__Fields);
   bool InsertReturn =
     __Ti->GetTableHeap()->InsertTuple(row, nullptr);
-
   if (!InsertReturn) {
     printf("Insert error.\n");
     return DB_FAILED;
@@ -797,7 +831,12 @@ dberr_t ExecuteEngine::ExecuteDelete(pSyntaxNode ast, ExecuteContext *context) {
   }
   auto TableName = std::string(astIden->val_);
   TableInfo *__Ti;
-  dbs_[current_db_]->catalog_mgr_->GetTable(TableName, __Ti);
+  dberr_t GetTableReturn =
+    dbs_[current_db_]->catalog_mgr_->GetTable(TableName, __Ti);
+  if (GetTableReturn != DB_SUCCESS) {
+    printf("Table %s not found!\n", TableName.c_str());
+    return DB_FAILED;
+  }
   auto CurrentIterator = __Ti->GetTableHeap()->Begin(nullptr);
 
   bool DelectReturn;
@@ -852,7 +891,13 @@ dberr_t ExecuteEngine::ExecuteUpdate(pSyntaxNode ast, ExecuteContext *context) {
   }
 
   TableInfo *__Ti;
-  dbs_[current_db_]->catalog_mgr_->GetTable(ast->child_->val_, __Ti);
+  dberr_t GetTableReturn =
+    dbs_[current_db_]->catalog_mgr_->GetTable(ast->child_->val_, __Ti);
+  if (GetTableReturn != DB_SUCCESS) {
+    printf("Table %s not found!\n", ast->child_->val_);
+    return DB_FAILED;
+  }
+
   auto UpdateTableName = std::string(ast->child_->val_);
   auto CurrentIterator = __Ti->GetTableHeap()->Begin(nullptr);
 
@@ -1086,7 +1131,17 @@ dberr_t ExecuteEngine::ExecuteQuit(pSyntaxNode ast, ExecuteContext *context) {
 
 dberr_t ExecuteEngine::LogicConditions(pSyntaxNode ast, ExecuteContext *context, const Row &row, Schema *schema) {
   
-  if (ast->type_ == kNodeConnector) {
+  if (ast == nullptr) {
+    // Consider NULL as true
+    context->condition_ = true;
+    return DB_SUCCESS;
+  }
+
+  if (ast->type_ == kNodeConditions) {
+
+    LogicConditions(ast->child_, context, row, schema);
+
+  } else if (ast->type_ == kNodeConnector) {
 
     ExecuteContext LeftExpression, RightExpression;     // condition_ is initialized true.
     LogicConditions(ast->child_, &LeftExpression, row, schema);
@@ -1117,8 +1172,6 @@ dberr_t ExecuteEngine::LogicConditions(pSyntaxNode ast, ExecuteContext *context,
       context->flag_quit_ = true;
       return DB_FAILED;
     }
-
-    return DB_SUCCESS;
 
   } else if (ast->type_ == kNodeCompareOperator) {
 
@@ -1197,8 +1250,6 @@ dberr_t ExecuteEngine::LogicConditions(pSyntaxNode ast, ExecuteContext *context,
       return DB_FAILED;
     }
 
-    // Finish!
-    return DB_SUCCESS;
   }
-  return DB_FAILED;
+  return DB_SUCCESS;
 }

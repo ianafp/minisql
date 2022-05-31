@@ -125,7 +125,7 @@ private:
     std::vector<Column*> cols = key_schema_->GetColumns();
     uint32_t key_len = 0;
     for(auto &it :cols){
-      key_len += it->GetLength();
+      key_len += it->GetSerializedSize();
     }
     assert(key_len<=128);
     Index* res;
