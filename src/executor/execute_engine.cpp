@@ -726,7 +726,8 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
       ++SelectedRow;
       printf("|");
       for (auto i : SelectIndexes) {
-        printf("%12s", CurrentIterator->GetField(i)->GetData());
+        printf("%12s", (CurrentIterator->GetField(i)->IsNull()) ?
+              "(null)" : CurrentIterator->GetField(i)->GetData());
       }
       printf("|\n");
     }
@@ -1259,11 +1260,11 @@ dberr_t ExecuteEngine::LogicConditions(pSyntaxNode ast, ExecuteContext *context,
     }
 
     // Comparation ..
-    if (strcmp(ast->val_, "is")) {
+    if (strcmp(ast->val_, "is") == 0) {
       context->condition_ = (LeftNull && RightNull);
-    } else if (strcmp(ast->val_, "not")) {
-      context->condition_ = (LeftNull != RightNull);
-    } else if (!LeftNull && !RightNull) {   // Null value can not use these comparation operators
+    } else if (strcmp(ast->val_, "not") == 0) {
+      context->condition_ = ((!LeftNull) && RightNull);
+    } else if (!(LeftNull || RightNull)) {   // Null value can not use these comparation operators
       
       if (strcmp(ast->val_, "<=") == 0) {
         context->condition_ = (atof(LeftValueStr.c_str()) <= atof(RightValueStr.c_str()));
@@ -1274,9 +1275,9 @@ dberr_t ExecuteEngine::LogicConditions(pSyntaxNode ast, ExecuteContext *context,
       } else if (strcmp(ast->val_, ">") == 0) {
         context->condition_ = (atof(LeftValueStr.c_str()) > atof(RightValueStr.c_str()));
       } else if (strcmp(ast->val_, "<>") == 0 || strcmp(ast->val_, "!=") == 0) {
-        context->condition_ = (LeftValueStr.c_str() == RightValueStr.c_str());
+        context->condition_ = (strcmp(LeftValueStr.c_str(), RightValueStr.c_str()) != 0);
       } else if (strcmp(ast->val_, "=") == 0) {
-        context->condition_ = (LeftValueStr.c_str() == RightValueStr.c_str());
+        context->condition_ = (strcmp(LeftValueStr.c_str(), RightValueStr.c_str()) == 0);
       } else {
         printf("Unexpected comparison operator.\n");
         context->flag_quit_ = true;
@@ -1284,7 +1285,7 @@ dberr_t ExecuteEngine::LogicConditions(pSyntaxNode ast, ExecuteContext *context,
       }
 
     } else {
-      printf("Cannot compare null value.\n");
+      printf("Null value can only use \"is null\" or \"not null\" to compare.\n");
       context->flag_quit_ = true;
       return DB_FAILED;
     }
