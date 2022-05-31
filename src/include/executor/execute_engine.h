@@ -31,6 +31,8 @@ public:
   ExecuteEngine();
 
   ~ExecuteEngine() {
+    ExecuteContext __Context;
+    ExecuteSaveDatabase(&__Context);
     for (auto it : dbs_) {
       delete it.second;
     }
@@ -40,6 +42,12 @@ public:
    * executor interface
    */
   dberr_t Execute(pSyntaxNode ast, ExecuteContext *context);
+
+  // Database list save&load
+
+  dberr_t ExecuteLoadDatabase(ExecuteContext *context);
+
+  dberr_t ExecuteSaveDatabase(ExecuteContext *context);
 
 private:
   dberr_t ExecuteCreateDatabase(pSyntaxNode ast, ExecuteContext *context);

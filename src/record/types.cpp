@@ -1,3 +1,4 @@
+#include <string>
 #include "common/macros.h"
 #include "record/types.h"
 #include "record/field.h"
