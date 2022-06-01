@@ -3,6 +3,9 @@
 #include "executor/execute_engine.h"
 #include "glog/logging.h"
 
+// Width of each column in selected table
+constexpr uint32_t DISPLAY_COLUMN_WIDTH = 12;
+
 extern "C" {
 int yyparse(void);
 //FILE *yyin;
@@ -94,6 +97,36 @@ bool isFloat(char* cp) {
       break;
     }
   return isFloat;
+}
+
+/* Complement str to length max_len with prefix space.
+   If the input c_str has a length greater than max_len, replace the
+    last two characters with '.'
+ */
+inline char *CStringComplement(const char *str, uint32_t max_len) {
+  static char ret[256];
+  uint32_t len = 0;
+  while (str[len] != '\0' && len <= max_len) ++len;
+  if (len > max_len) {
+    ret[--len] = '\0', ret[0] = str[0];
+    ret[--len] = '.', ret[--len] = '.';
+    while (--len > 0) ret[len] = str[len];
+  } else {
+    ret[max_len] = '\0';
+    if (len == max_len) {
+      while (--len > 0) ret[len] = str[len];
+      ret[0] = str[0];
+    } else if (len == 0) {
+      ret[0] = ' ';
+      while (++len < max_len) ret[len] = ' ';
+    } else {
+      ret[max_len] = '\0', len = max_len - len;
+      while (--max_len - len > 0) ret[max_len] = str[max_len - len];
+      ret[len] = str[0], ret[0] = ' ';
+      while (--len > 0) ret[len] = ' ';
+    }
+  }
+  return ret;
 }
 
 /* The author thinks this function (you are reading now)
@@ -376,15 +409,22 @@ dberr_t ExecuteEngine::ExecuteCreateTable(pSyntaxNode ast, ExecuteContext *conte
         __Unique = (astCol->val_ && strcmp(astCol->val_, "unique") == 0) ? true : false;
         TypeId NewColumnType = GetTypeId(astCol->child_->next_->val_);
         if (NewColumnType == kTypeChar) {
+          // CHAR
+          auto ColumnLength = astCol->child_->next_->child_->val_;
+          if (isFloat(ColumnLength) || atoi(ColumnLength) <= 0) {
+            printf("Unexpected char length on column %lu.\n", ColumnList.size());
+            return DB_FAILED;
+          }
           ColumnList.push_back(new Column(
             std::string(astCol->child_->val_),  // Name
             NewColumnType,                      // Type
-            atoi(astCol->child_->next_->child_->val_),  // Length
+            atoi(ColumnLength),                 // Length
             __Index++,                          // Index, start from 0
             true,                               // Nullable
             __Unique                            // Unique
           ));
         } else {
+          // NON-CHAR
           ColumnList.push_back(new Column(
             std::string(astCol->child_->val_),  // Name
             NewColumnType,                      // Type
@@ -679,6 +719,7 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
   // Find ..
   if (SelectColumnNames.size() > 0) {
 
+    // Select columns in vector SelectColumnNames
     for (auto ColumnStr : SelectColumnNames) {
       FindColumnReturn = __Ti->GetSchema()->GetColumnIndex(ColumnStr, __Idx);
       if (FindColumnReturn != DB_SUCCESS) {
@@ -700,11 +741,11 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
 
   // Print title
   printf("+");
-  for (uint32_t i = 0; i < SelectColumnNames.size() * 12; ++i) printf("-");
+  for (uint32_t i = 0; i < SelectColumnNames.size() * (DISPLAY_COLUMN_WIDTH + 3) - 1; ++i) printf("-");
   printf("+\n|");
-  for (auto __Str : SelectColumnNames) printf("%12s", __Str.c_str());
-  printf("|\n+");
-  for (uint32_t i = 0; i < SelectColumnNames.size() * 12; ++i) printf("-");
+  for (auto __Str : SelectColumnNames) printf(" %s |", CStringComplement(__Str.c_str(), DISPLAY_COLUMN_WIDTH));
+  printf("\n+");
+  for (uint32_t i = 0; i < SelectColumnNames.size() * (DISPLAY_COLUMN_WIDTH + 3) - 1; ++i) printf("-");
   printf("+\n");
 
   auto ConditionRoot = ast->child_->next_->next_;
@@ -725,18 +766,21 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
       // Select this row:
       ++SelectedRow;
       printf("|");
+      // Print columns
       for (auto i : SelectIndexes) {
-        printf("%12s", (CurrentIterator->GetField(i)->IsNull()) ?
-              "(null)" : CurrentIterator->GetField(i)->GetData());
+        printf(" %s |",
+          CStringComplement(
+            (CurrentIterator->GetField(i)->IsNull()) ? "(null)" : CurrentIterator->GetField(i)->GetData(),
+            DISPLAY_COLUMN_WIDTH));
       }
-      printf("|\n");
+      printf("\n");
     }
   }
   // SELECT END
 
   // Print buttom
   printf("+");
-  for (uint32_t i = 0; i < SelectColumnNames.size() * 12; ++i) printf("-");
+  for (uint32_t i = 0; i < SelectColumnNames.size() * (DISPLAY_COLUMN_WIDTH + 3) - 1; ++i) printf("-");
   printf("+\n");
   printf("%u row(s) matched in total.\n", SelectedRow);
 
@@ -789,12 +833,15 @@ dberr_t ExecuteEngine::ExecuteInsert(pSyntaxNode ast, ExecuteContext *context) {
         bool WrongType = false;
         switch (astValue->type_) {
           case kNodeNumber:
-            if (isFloat(astValue->val_)) {
-              if (ColumnType != kTypeFloat) WrongType = true;
+            if (ColumnType == kTypeInt) {
+              if (isFloat(astValue->val_)) 
+                WrongType = true;
+              else
+                __Fields.push_back(Field(kTypeInt, atoi(astValue->val_)));
+            } else if (ColumnType == kTypeFloat) {
               __Fields.push_back(Field(kTypeFloat, (float)atof(astValue->val_)));
             } else {
-              if (ColumnType != kTypeInt) WrongType = true;
-              __Fields.push_back(Field(kTypeInt, atoi(astValue->val_)));
+              WrongType = true;
             }
             break;
           case kNodeString:
@@ -845,9 +892,39 @@ dberr_t ExecuteEngine::ExecuteInsert(pSyntaxNode ast, ExecuteContext *context) {
     printf("Insert error.\n");
     return DB_FAILED;
   }
+  RowId row_id = row.GetRowId();    // RowId
+
+  return DB_SUCCESS;    // You can sleep here, temporarily ...
+
+  // Under testing (DON'T COME OVER HERE!!!)
 
   // Insert new row to indexes
-  // TO DO ..
+  dberr_t InsertEntryReturn;
+  std::vector<Field> IndexFields;
+  std::vector<Column *> IndexColumns;
+  std::vector<IndexInfo *> TableIndexes;
+  dbs_[current_db_]->catalog_mgr_->GetTableIndexes(__Ti->GetTableName(), TableIndexes);
+  // For a moment I flash a thought of checking the return of GetTableIndexes
+  // But recently I realize ... the only thing you can give ... is DB_SUCCESS ...
+
+  for (auto __Idx : TableIndexes) {
+
+    // Get index columns and iterate
+    IndexColumns = __Idx->GetIndexKeySchema()->GetColumns();
+    IndexFields.clear();
+    for (auto __Col : IndexColumns) {
+      IndexFields.push_back(__Fields[__Col->GetTableInd()]);
+    }
+
+    // Insert into index
+    Row NewIndexRow = Row(IndexFields);
+    InsertEntryReturn = 
+      __Idx->GetIndex()->InsertEntry(NewIndexRow, row_id, nullptr);
+    if (InsertEntryReturn != DB_SUCCESS) {
+      printf("Insert successfully but index insert error.\n");
+      return DB_FAILED;
+    }
+  }
 
   return DB_SUCCESS;
 }
