@@ -387,7 +387,12 @@ dberr_t ExecuteEngine::ExecuteCreateTable(pSyntaxNode ast, ExecuteContext *conte
     printf("Invalid identifier.\n");
     return DB_FAILED;
   }
+  TableInfo *NewTableInfo;                               // Create TableInfo
   auto NewTableIdentifier = std::string(astIden->val_);  // Identifier
+  if (dbs_[current_db_]->catalog_mgr_->GetTable(NewTableIdentifier, NewTableInfo) == DB_SUCCESS) {
+    printf("There is already a table which named %s!\n", NewTableIdentifier.c_str());
+    return DB_FAILED;
+  }
 
   // Get column definition list
   if (astIden->next_ && astIden->next_->type_ == kNodeColumnDefinitionList &&
@@ -397,6 +402,7 @@ dberr_t ExecuteEngine::ExecuteCreateTable(pSyntaxNode ast, ExecuteContext *conte
     uint32_t __Index = 0;
     auto astCol = astIden->next_->child_;
     std::vector<Column *> ColumnList;
+    std::vector<std::string> UniqueKeyList;
     std::vector<std::string> PrimaryKeyList;
 
     // Get parameters
@@ -405,9 +411,13 @@ dberr_t ExecuteEngine::ExecuteCreateTable(pSyntaxNode ast, ExecuteContext *conte
       if (astCol->type_ == kNodeColumnDefinition) {
         // Crisis check (TO DO)
         // bool IdentifierCollided = false;
-        // Insertion
-        __Unique = (astCol->val_ && strcmp(astCol->val_, "unique") == 0) ? true : false;
+        
+        std::string NewColumnName = std::string(astCol->child_->val_);
         TypeId NewColumnType = GetTypeId(astCol->child_->next_->val_);
+        __Unique = (astCol->val_ && strcmp(astCol->val_, "unique") == 0) ? true : false;
+        if (__Unique) UniqueKeyList.push_back(NewColumnName);
+
+        // Insertion
         if (NewColumnType == kTypeChar) {
           // CHAR
           auto ColumnLength = astCol->child_->next_->child_->val_;
@@ -416,7 +426,7 @@ dberr_t ExecuteEngine::ExecuteCreateTable(pSyntaxNode ast, ExecuteContext *conte
             return DB_FAILED;
           }
           ColumnList.push_back(new Column(
-            std::string(astCol->child_->val_),  // Name
+            NewColumnName,                      // Name
             NewColumnType,                      // Type
             atoi(ColumnLength),                 // Length
             __Index++,                          // Index, start from 0
@@ -426,7 +436,7 @@ dberr_t ExecuteEngine::ExecuteCreateTable(pSyntaxNode ast, ExecuteContext *conte
         } else {
           // NON-CHAR
           ColumnList.push_back(new Column(
-            std::string(astCol->child_->val_),  // Name
+            NewColumnName,                      // Name
             NewColumnType,                      // Type
             __Index++,                          // Index, start from 0
             true,                               // Nullable
@@ -462,8 +472,7 @@ dberr_t ExecuteEngine::ExecuteCreateTable(pSyntaxNode ast, ExecuteContext *conte
       astCol = astCol->next_;   // Next node
     }
 
-    TableSchema *NewTableSchema = new Schema(ColumnList);   // Create Schema
-    TableInfo *NewTableInfo;                                // Create TableInfo
+    TableSchema *NewTableSchema = new Schema(ColumnList);       // Create Schema
     dberr_t CreateReturn =
       dbs_[current_db_]->catalog_mgr_->
       CreateTable (
@@ -477,22 +486,36 @@ dberr_t ExecuteEngine::ExecuteCreateTable(pSyntaxNode ast, ExecuteContext *conte
       return DB_FAILED;
     }
 
-    // Create Indexes for primary keys
-    IndexInfo *PrimaryIndexInfo;
-    std::vector<std::string> PrimaryIndexColumn;
-    for (auto __Col : PrimaryKeyList) {
-      PrimaryIndexColumn.clear();
-      PrimaryIndexColumn.push_back(__Col);
+    // Create Indexes for primary keys and unique keys
+    // Every unique column has a index respectly while all primary keys share one index.
+    IndexInfo *__IndexInfo;
+    std::vector<std::string> UniqueIndexColumn;
+    for (auto __Col : UniqueKeyList) {
+      UniqueIndexColumn.clear();
+      UniqueIndexColumn.push_back(__Col);
       CreateReturn = dbs_[current_db_]->catalog_mgr_->CreateIndex(
         NewTableIdentifier,
         "__" + __Col + "__Index",
-        PrimaryIndexColumn,
-        nullptr,
-        PrimaryIndexInfo
+        UniqueIndexColumn,
+        nullptr, 
+        __IndexInfo
       );
       if (CreateReturn != DB_SUCCESS) {
-        printf("Failed to create index for primary key %s.\n", __Col.c_str());
+        printf("Failed to create index for unique key %s.\n", __Col.c_str());
       }
+    }
+    std::vector<std::string> PrimaryIndexColumn;
+    for (auto __Col : PrimaryKeyList)
+      PrimaryIndexColumn.push_back(__Col);
+    CreateReturn = dbs_[current_db_]->catalog_mgr_->CreateIndex(
+      NewTableIdentifier, 
+      "__" + NewTableIdentifier + "__PrimaryIndex",
+      PrimaryIndexColumn, 
+      nullptr, 
+      __IndexInfo
+    );
+    if (CreateReturn != DB_SUCCESS) {
+      printf("Failed to create index for primary keys.\n");
     }
 
   }
@@ -624,8 +647,13 @@ dberr_t ExecuteEngine::ExecuteCreateIndex(pSyntaxNode ast, ExecuteContext *conte
   // Para 4: Index type (optional)
   //astIden = ast->next_;
   //if (astIden) Change index type;
+  printf("It's suprising that you can input command but MiniSQL doesn't made any response.\n");
+  printf("A new bug, right? But I can't tell why.\n");
+  printf("If you find [CREATEINDEX_SAFE_BOUNDARY] use Ctrl+F, you will arrive there in code.\n");
+  printf("As you can see, it's just an edge of abyss ...\n");
   
   IndexInfo *NewIndexInfo;
+  // But who knows what happened after that? ¡ý
   dberr_t CreateReturn = 
     dbs_[current_db_]->catalog_mgr_->
     CreateIndex(TableName, NewIndexName, NewIndexColumns, nullptr, NewIndexInfo);
@@ -894,10 +922,6 @@ dberr_t ExecuteEngine::ExecuteInsert(pSyntaxNode ast, ExecuteContext *context) {
   }
   RowId row_id = row.GetRowId();    // RowId
 
-  return DB_SUCCESS;    // You can sleep here, temporarily ...
-
-  // Under testing (DON'T COME OVER HERE!!!)
-
   // Insert new row to indexes
   dberr_t InsertEntryReturn;
   std::vector<Field> IndexFields;
@@ -921,7 +945,8 @@ dberr_t ExecuteEngine::ExecuteInsert(pSyntaxNode ast, ExecuteContext *context) {
     InsertEntryReturn = 
       __Idx->GetIndex()->InsertEntry(NewIndexRow, row_id, nullptr);
     if (InsertEntryReturn != DB_SUCCESS) {
-      printf("Insert successfully but index insert error.\n");
+      printf("Index insert error. You may insert duplicate value into a unique column.\n");
+      __Ti->GetTableHeap()->MarkDelete(row_id, nullptr);
       return DB_FAILED;
     }
   }
@@ -956,42 +981,44 @@ dberr_t ExecuteEngine::ExecuteDelete(pSyntaxNode ast, ExecuteContext *context) {
 
   bool DelectReturn;
   auto ConditionRoot = ast->child_->next_;
-  if (ConditionRoot && ConditionRoot->type_ == kNodeConditions) {
-    ConditionRoot = ConditionRoot->child_;
 
-    // DELECT
-    dberr_t LogicReturn;
-    auto TableEnd = __Ti->GetTableHeap()->End();
-    for (; CurrentIterator != TableEnd; ++CurrentIterator) {
+  // DELECT BEGIN
+  dberr_t LogicReturn;
+  auto TableEnd = __Ti->GetTableHeap()->End();
+  // For indexes
+  std::vector<Field> __FieldsToDelete;
+  std::vector<Column *> IndexColumns;
+  std::vector<IndexInfo *> TableIndexes;
+  dbs_[current_db_]->catalog_mgr_->GetTableIndexes(TableName, TableIndexes);
 
-      ExecuteContext SelectContext;
-      LogicReturn = LogicConditions(ConditionRoot, &SelectContext, *CurrentIterator, __Ti->GetSchema());
-      if (LogicReturn != DB_SUCCESS) {
-        printf("Failed to analyze logic conditions.\n");
-        return DB_FAILED;
-      }
-
-      if (SelectContext.condition_) {
-        // Select this row:
-        DelectReturn =
-          __Ti->GetTableHeap()->MarkDelete(CurrentIterator->GetRowId(), nullptr);
-        if (!DelectReturn) 
-          printf("Failed to delete tuple. (RowId = %ld)\n", CurrentIterator->GetRowId().Get());
-      }
+  for (; CurrentIterator != TableEnd; ++CurrentIterator) {
+    ExecuteContext SelectContext;
+    LogicReturn = LogicConditions(ConditionRoot, &SelectContext, *CurrentIterator, __Ti->GetSchema());
+    if (LogicReturn != DB_SUCCESS) {
+      printf("Failed to analyze logic conditions.\n");
+      return DB_FAILED;
     }
-    // DELECT END
-
-  } else {
-    // DELECT WITHOUT ANY CONDITION
-    auto TableEnd = __Ti->GetTableHeap()->End();
-    for (; CurrentIterator != TableEnd; ++CurrentIterator) {
-      DelectReturn =
-        __Ti->GetTableHeap()->MarkDelete(CurrentIterator->GetRowId(), nullptr);
-      if (!DelectReturn)
+    if (SelectContext.condition_) {
+      // Select this row:
+      auto __DeletedRow = *CurrentIterator;
+      DelectReturn = __Ti->GetTableHeap()->MarkDelete(CurrentIterator->GetRowId(), nullptr);
+      if (!DelectReturn) {
         printf("Failed to delete tuple. (RowId = %ld)\n", CurrentIterator->GetRowId().Get());
+        continue;
+      }
+ 
+      // Delete in indexes
+      for (auto __Idx : TableIndexes) {
+        IndexColumns.clear();
+        IndexColumns = __Idx->GetIndexKeySchema()->GetColumns();
+        for (auto __Col : IndexColumns) 
+          __FieldsToDelete.push_back(*( __DeletedRow.GetField(__Col->GetTableInd())));
+        Row RowToDelete = Row(__FieldsToDelete);
+        __Idx->GetIndex()->RemoveEntry(RowToDelete, __DeletedRow.GetRowId(), nullptr);      // You! You can only return SUCCESS too!
+      }
     }
-    // DELECT END
   }
+  // DELECT END
 
   return DB_SUCCESS;
 }
@@ -1069,47 +1096,23 @@ dberr_t ExecuteEngine::ExecuteUpdate(pSyntaxNode ast, ExecuteContext *context) {
   }
 
   auto ConditionRoot = ast->child_->next_->next_;
-  if (ConditionRoot && ConditionRoot->type_ == kNodeConditions) {
-    ConditionRoot = ConditionRoot->child_;
 
-    // UPDATE
-    dberr_t LogicReturn;
-    auto TableEnd = __Ti->GetTableHeap()->End();
-    std::vector<Field> UpdateFields;
-    std::vector<Field *> OldFields;
-    for (; CurrentIterator != TableEnd; ++CurrentIterator) {
-      ExecuteContext SelectContext;
-      LogicReturn = LogicConditions(ConditionRoot, &SelectContext, *CurrentIterator, __Ti->GetSchema());
-      if (LogicReturn != DB_SUCCESS) {
-        printf("Failed to analyze logic conditions.\n");
-        return DB_FAILED;
-      }
-
-      if (SelectContext.condition_) {
-        // Select this row:
-        // Generate old row
-        UpdateFields.clear();
-        OldFields = CurrentIterator->GetFields();
-        for (auto f : OldFields) UpdateFields.push_back(Field(*f));
-        // Update New row
-        for (long unsigned int i = 0; i < UpdateIndexes.size(); ++i) {
-          UpdateFields[UpdateIndexes[i]] = UpdateFieldList[i];
-        }
-        Row __newrod = Row(UpdateFields);
-        // Update
-        RowId __rowid = CurrentIterator->GetRowId();
-        __Ti->GetTableHeap()->UpdateTuple(__newrod, __rowid, nullptr);
-      }
+  // UPDATE
+  uint32_t Updated = 0;
+  bool UpdateReturn;
+  dberr_t LogicReturn;
+  auto TableEnd = __Ti->GetTableHeap()->End();
+  std::vector<Field> UpdateFields;
+  std::vector<Field *> OldFields;
+  for (; CurrentIterator != TableEnd; ++CurrentIterator) {
+    ExecuteContext SelectContext;
+    LogicReturn = LogicConditions(ConditionRoot, &SelectContext, *CurrentIterator, __Ti->GetSchema());
+    if (LogicReturn != DB_SUCCESS) {
+      printf("Failed to analyze logic conditions.\n");
+      return DB_FAILED;
     }
-    // UPDATE END
 
-  } else {
-    // UPDATE WITHOUT ANY CONDITION
-    auto TableEnd = __Ti->GetTableHeap()->End();
-    std::vector<Field> UpdateFields;
-    std::vector<Field *> OldFields;
-    for (; CurrentIterator != TableEnd; ++CurrentIterator) {
-
+    if (SelectContext.condition_) {
       // Select this row:
       // Generate old row
       UpdateFields.clear();
@@ -1117,15 +1120,19 @@ dberr_t ExecuteEngine::ExecuteUpdate(pSyntaxNode ast, ExecuteContext *context) {
       for (auto f : OldFields) UpdateFields.push_back(Field(*f));
       // Update New row
       for (long unsigned int i = 0; i < UpdateIndexes.size(); ++i) {
-          UpdateFields[UpdateIndexes[i]] = UpdateFieldList[i];
+        UpdateFields[UpdateIndexes[i]] = UpdateFieldList[i];
       }
-      Row __newrod = Row(UpdateFields);
+      Row __newrow = Row(UpdateFields);
       // Update
       RowId __rowid = CurrentIterator->GetRowId();
-      __Ti->GetTableHeap()->UpdateTuple(__newrod, __rowid, nullptr);
+      UpdateReturn = __Ti->GetTableHeap()->UpdateTuple(__newrow, __rowid, nullptr);
+      if (!UpdateReturn) printf("Failed to update row (rowid = %ld).\n", __rowid.Get());
+      ++Updated;
     }
-    // UPDATE END
   }
+  // UPDATE END
+
+  printf("%u row(s) updated in total.\n", Updated);
 
   return DB_SUCCESS;
 }
