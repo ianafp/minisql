@@ -149,6 +149,7 @@ private:
       key_field.push_back(*it_table_heap_->GetField(it));
     }
     res->InsertEntry(Row(key_field),it_table_heap_->GetRowId(),nullptr);
+    ++it_table_heap_;
   }
   return res;
   }

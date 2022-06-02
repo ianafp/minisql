@@ -359,9 +359,12 @@ dberr_t ExecuteEngine::ExecuteCreateTable(pSyntaxNode ast, ExecuteContext *conte
   // Get column definition list
   if (astIden->next_ && astIden->next_->type_ == kNodeColumnDefinitionList &&
       astIden->next_->child_) {
+
+    bool __Unique;
     uint32_t __Index = 0;
     auto astCol = astIden->next_->child_;
     std::vector<Column *> ColumnList;
+    std::vector<std::string> PrimaryKeyList;
 
     // Get parameters
     while (astCol) {
@@ -370,6 +373,7 @@ dberr_t ExecuteEngine::ExecuteCreateTable(pSyntaxNode ast, ExecuteContext *conte
         // Crisis check (TO DO)
         // bool IdentifierCollided = false;
         // Insertion
+        __Unique = (astCol->val_ && strcmp(astCol->val_, "unique") == 0) ? true : false;
         TypeId NewColumnType = GetTypeId(astCol->child_->next_->val_);
         if (NewColumnType == kTypeChar) {
           ColumnList.push_back(new Column(
@@ -378,29 +382,32 @@ dberr_t ExecuteEngine::ExecuteCreateTable(pSyntaxNode ast, ExecuteContext *conte
             atoi(astCol->child_->next_->child_->val_),  // Length
             __Index++,                          // Index, start from 0
             true,                               // Nullable
-            false                               // Unique
-          ));  // TO DO: find out whether the syntax tree process "nullable" and "unique"
+            __Unique                            // Unique
+          ));
         } else {
           ColumnList.push_back(new Column(
             std::string(astCol->child_->val_),  // Name
             NewColumnType,                      // Type
             __Index++,                          // Index, start from 0
             true,                               // Nullable
-            false                               // Unique
-          ));  // TO DO: find out whether the syntax tree process "nullable" and "unique"
+            __Unique                            // Unique
+          ));
         }
       
       } else if (astCol->type_ == kNodeColumnList) {
         
+        // PRIMARY KEYS
         auto astPrimaryIden = astCol->child_;
         while (astPrimaryIden) {
+
+          PrimaryKeyList.push_back(string(astPrimaryIden->val_));
+
           // Find key by name
-          long unsigned int KeyIndex = 0;
-          for (; KeyIndex < ColumnList.size(); ++KeyIndex) {
-            if (string(astPrimaryIden->val_) == ColumnList[KeyIndex]->GetName()) {
+          uint32_t KeyIndex = 0;
+          for (; KeyIndex < ColumnList.size(); ++KeyIndex)
+            if (strcmp(astPrimaryIden->val_, ColumnList[KeyIndex]->GetName().c_str()) == 0)
               break;
-            }
-          }
+          
           // Set this column to not null & unique
           if (KeyIndex != ColumnList.size()) {
             Column* C = ColumnList[KeyIndex];
@@ -428,6 +435,24 @@ dberr_t ExecuteEngine::ExecuteCreateTable(pSyntaxNode ast, ExecuteContext *conte
     if (CreateReturn != DB_SUCCESS) {
       printf("Failed to create table %s in database %s.\n", NewTableIdentifier.c_str(), current_db_.c_str());
       return DB_FAILED;
+    }
+
+    // Create Indexes for primary keys
+    IndexInfo *PrimaryIndexInfo;
+    std::vector<std::string> PrimaryIndexColumn;
+    for (auto __Col : PrimaryKeyList) {
+      PrimaryIndexColumn.clear();
+      PrimaryIndexColumn.push_back(__Col);
+      CreateReturn = dbs_[current_db_]->catalog_mgr_->CreateIndex(
+        NewTableIdentifier,
+        "__" + __Col + "__Index",
+        PrimaryIndexColumn,
+        nullptr,
+        PrimaryIndexInfo
+      );
+      if (CreateReturn != DB_SUCCESS) {
+        printf("Failed to create index for primary key %s.\n", __Col.c_str());
+      }
     }
 
   }
@@ -685,6 +710,7 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
   auto ConditionRoot = ast->child_->next_->next_;
 
   // SELECT
+  uint32_t SelectedRow = 0;
   dberr_t LogicReturn;
   auto TableEnd = __Ti->GetTableHeap()->End();
   for (; CurrentIterator != TableEnd; ++CurrentIterator) {
@@ -697,9 +723,11 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
 
     if (SelectContext.condition_) {
       // Select this row:
+      ++SelectedRow;
       printf("|");
       for (auto i : SelectIndexes) {
-        printf("%12s", CurrentIterator->GetField(i)->GetData());
+        printf("%12s", (CurrentIterator->GetField(i)->IsNull()) ?
+              "(null)" : CurrentIterator->GetField(i)->GetData());
       }
       printf("|\n");
     }
@@ -710,6 +738,7 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
   printf("+");
   for (uint32_t i = 0; i < SelectColumnNames.size() * 12; ++i) printf("-");
   printf("+\n");
+  printf("%u row(s) matched in total.\n", SelectedRow);
 
   return DB_SUCCESS;
 }
@@ -749,6 +778,12 @@ dberr_t ExecuteEngine::ExecuteInsert(pSyntaxNode ast, ExecuteContext *context) {
     while (ValueCount < TableColumns.size()) {
 
       if (astValue) {
+
+        // You cannot insert NULL to not null column
+        if (astValue->type_ == kNodeNull && !(TableColumns[ValueCount]->IsNullable())) {
+          printf("Cannot insert NULL into a not nullable column.\n");
+          return DB_FAILED;
+        }
 
         ColumnType = TableColumns[ValueCount]->GetType();
         bool WrongType = false;
@@ -810,6 +845,9 @@ dberr_t ExecuteEngine::ExecuteInsert(pSyntaxNode ast, ExecuteContext *context) {
     printf("Insert error.\n");
     return DB_FAILED;
   }
+
+  // Insert new row to indexes
+  // TO DO ..
 
   return DB_SUCCESS;
 }
@@ -1222,22 +1260,24 @@ dberr_t ExecuteEngine::LogicConditions(pSyntaxNode ast, ExecuteContext *context,
     }
 
     // Comparation ..
-    if (strcmp(ast->val_, "is")) {
+    if (strcmp(ast->val_, "is") == 0) {
       context->condition_ = (LeftNull && RightNull);
-    } else if (strcmp(ast->val_, "not")) {
-      context->condition_ = (LeftNull != RightNull);
-    } else if (!LeftNull && !RightNull) {   // Null value can not use these comparation operators
+    } else if (strcmp(ast->val_, "not") == 0) {
+      context->condition_ = ((!LeftNull) && RightNull);
+    } else if (!(LeftNull || RightNull)) {   // Null value can not use these comparation operators
       
-      if (strcmp(ast->val_, "<=")) {
+      if (strcmp(ast->val_, "<=") == 0) {
         context->condition_ = (atof(LeftValueStr.c_str()) <= atof(RightValueStr.c_str()));
-      } else if (strcmp(ast->val_, ">=")) {
+      } else if (strcmp(ast->val_, ">=") == 0) {
         context->condition_ = (atof(LeftValueStr.c_str()) >= atof(RightValueStr.c_str()));
-      } else if (strcmp(ast->val_, "<")) {
+      } else if (strcmp(ast->val_, "<") == 0) {
         context->condition_ = (atof(LeftValueStr.c_str()) < atof(RightValueStr.c_str()));
-      } else if (strcmp(ast->val_, ">")) {
+      } else if (strcmp(ast->val_, ">") == 0) {
         context->condition_ = (atof(LeftValueStr.c_str()) > atof(RightValueStr.c_str()));
-      } else if (strcmp(ast->val_, "=")) {
-        context->condition_ = (LeftValueStr.c_str() == RightValueStr.c_str());
+      } else if (strcmp(ast->val_, "<>") == 0 || strcmp(ast->val_, "!=") == 0) {
+        context->condition_ = (strcmp(LeftValueStr.c_str(), RightValueStr.c_str()) != 0);
+      } else if (strcmp(ast->val_, "=") == 0) {
+        context->condition_ = (strcmp(LeftValueStr.c_str(), RightValueStr.c_str()) == 0);
       } else {
         printf("Unexpected comparison operator.\n");
         context->flag_quit_ = true;
@@ -1245,7 +1285,7 @@ dberr_t ExecuteEngine::LogicConditions(pSyntaxNode ast, ExecuteContext *context,
       }
 
     } else {
-      printf("Cannot compare null value.\n");
+      printf("Null value can only use \"is null\" or \"not null\" to compare.\n");
       context->flag_quit_ = true;
       return DB_FAILED;
     }

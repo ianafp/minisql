@@ -71,7 +71,7 @@ bool TablePage::MarkDelete(const RowId &rid, Transaction *txn, LockManager *lock
   return true;
 }
 
-int TablePage::UpdateTuple(const Row &new_row, Row *old_row, Schema *schema,
+int TablePage::UpdateTuple(Row &new_row, Row *old_row, Schema *schema,
                             Transaction *txn, LockManager *lock_manager, LogManager *log_manager) {
   ASSERT(old_row != nullptr && old_row->GetRowId().Get() != INVALID_ROWID.Get(), "invalid old row.");
   uint32_t serialized_size = new_row.GetSerializedSize(schema);
@@ -99,6 +99,7 @@ int TablePage::UpdateTuple(const Row &new_row, Row *old_row, Schema *schema,
   memmove(GetData() + free_space_pointer + tuple_size - serialized_size, GetData() + free_space_pointer,
           tuple_offset - free_space_pointer);
   SetFreeSpacePointer(free_space_pointer + tuple_size - serialized_size);
+  new_row.SetRowId(RowId(this->GetPageId(),slot_num));
   new_row.SerializeTo(GetData() + tuple_offset + tuple_size - serialized_size, schema);
   SetTupleSize(slot_num, serialized_size);
 
@@ -106,7 +107,7 @@ int TablePage::UpdateTuple(const Row &new_row, Row *old_row, Schema *schema,
   for (uint32_t i = 0; i < GetTupleCount(); ++i) {
     uint32_t tuple_offset_i = GetTupleOffsetAtSlot(i);
     if (GetTupleSize(i) > 0 && tuple_offset_i < tuple_offset + tuple_size) {
-      SetTupleOffsetAtSlot(i, tuple_offset_i + tuple_size - new_row.GetSerializedSize(schema));
+      SetTupleOffsetAtSlot(i, tuple_offset_i + tuple_size - serialized_size);
     }
   }
   return 1;
@@ -170,6 +171,7 @@ bool TablePage::GetTuple(Row *row, Schema *schema, Transaction *txn, LockManager
   uint32_t tuple_offset = GetTupleOffsetAtSlot(slot_num);
   uint32_t __attribute__((unused)) read_bytes = row->DeserializeFrom(GetData() + tuple_offset, schema);
   ASSERT(tuple_size == read_bytes, "Unexpected behavior in tuple deserialize.");
+
   return true;
 }
 
