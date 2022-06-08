@@ -75,91 +75,81 @@ Table Info是表信息在内存中的存在形式，成员如下：
 
 其中table_heap\_是使用table_meta\_中的first page id创建的堆表。
 
+而table heap是该表在创建时，Catalog Manager为其分配的首页id创建的table heap对象。
 
+MemHeap为Catalog Manager传参
 
+### 2 表和索引的恢复
 
+Catalog Manager中维护的是数据库系统的Meta信息，当数据库引擎启动时，Catalog Manager需要将存在于磁盘中的Meta信息读取出，在内存中重构该数据库的模式对象。
 
-B+树的中间节点不存储数据，只存储键值和对应的子节点的逻辑页号，由于子节点的数量比键值多1，于是笔者采用了如下设计。
+而在Catalog中，我们维护的Meta信息分别是，数据库中表id以及其对应的元数据页，索引id以及其对应的元数据页。
 
-```c++
-   KeyType key_[INTERNAL_PAGE_SIZE];
-   page_id_t value_[INTERNAL_PAGE_SIZE + 1];
-```
+因此，当Catalog Manager进行恢复时，我们需要将Catalog Meta Page Id页的数据读出，建立id到元数据页的映射，再利用这个映射，读取对应元数据页，依次建立表name到表id的映射，表name到表信息对象的映射，表name到表上索引的id-name哈希表映射，以及索引id到索引对象的映射。
 
-和1.2中原理相同，利用局部性原理。
-
-### 2 B+ Tree Insert
-
-***
-
-B+树的插入作分类讨论如下：
-
-+ 若B+树根节点为叶节点，直接插入根节点
-+ 若B+树根节点为中间节点，则迭代找到对应插入键值的叶节点插入。
-+ 若键值已经在叶中存在，结束操作
-
-插入后的操作：
-
-+ 若页节点大小小于MaxSize，结束操作
-+ 否则对叶节点执行分裂操作，传出右边叶子的最小键值，插入父节点维护B+平衡。
-
-插入父节点后的操作：
-
-+ 若父节点大小小于MaxSize，结束操作
-+ 否则对internal page执行分裂操作，额外将middle key分裂出，插入父节点，进行递归调用
-+ 若该internal page是根节点，则执行分裂后额外分配新的根节点，连接。
-+ 注意分裂时，要更新子节点的父节点值
-
-### 3 B+ Tree Delete
-
-***
-
-B+树的删除操作步骤如下：
-
-+ 首先找到删除键值对应的叶节点
-+ 若键值不存在于节点中，结束操作，否则删除对应键值
-+ 检查删除后的节点大小，若小于节点最小大小，则检查临近节点
-  + 若该节点是父节点的最左节点，选取右侧sibling为临近节点
-  + 否则选取左侧节点为临近节点
-+ 找到临近节点后
-  + 若临近节点大小大于MinSize, 从临近节点转移一个键值对到该节点，更新父节点中的键值
-  + 若临近节点大小等于MinSize,将该节点和临近节点和父节点取出的对应键值合并成新的节点，递归检查父节点大小。
-+ 若该节点为根节点大小为0, 则删除该节点。
-
-#### 4 B+ Tree Search
-
-***
-
-B+树的等值查询通过迭代找到键值对应的叶子节点，线性扫描叶子节点得到值。
-
-对于范围查询，对范围的端点创建迭代器，利用迭代器线性遍历进行范围查询。
-
-### 5 B+ Tree Iterator
-
-***
-
-B+树迭代器成员如下：
+具体操作如下
 
 ```c++
-  int index_;
-  MappingType val_;
-  B_PLUS_TREE_LEAF_PAGE_TYPE* leaf_page_;
-  BufferPoolManager* buffer_pool_manager_;
+  // fetch catalog meta data
+  char* buf = this->buffer_pool_manager_->FetchPage(CATALOG_META_PAGE_ID)->GetData();
+  this->catalog_meta_ = CatalogMeta::DeserializeFrom(buf,this->heap_);
+  buffer_pool_manager_->UnpinPage(CATALOG_META_PAGE_ID,false);
+  // need not to fetch index root page
+  
+
+  // create table info
+  // fetch map from catelog manager
+
+  for(auto &it:this->catalog_meta_->table_meta_pages_){
+    buf = this->buffer_pool_manager_->FetchPage(it.second)->GetData();
+    this->buffer_pool_manager_->UnpinPage(it.second,false);
+    TableMetadata* table_meta ;TableMetadata::DeserializeFrom(buf,table_meta,this->heap_);
+    if(it.first>=next_table_id_) next_index_id_  = it.first+1;
+    table_names_.insert(std::pair<std::string,table_id_t>(table_meta->GetTableName(),it.first));
+    TableInfo* table_info = TableInfo::Create(this->heap_);
+    TableHeap* table_heap = TableHeap::Create(this->buffer_pool_manager_,table_meta->GetFirstPageId(),table_meta->GetSchema(),this->log_manager_,this->lock_manager_,this->heap_);
+    table_info->Init(table_meta,table_heap);
+    this->tables_.insert(std::pair<table_id_t,TableInfo*>(it.first,table_info));
+    this->index_names_.insert(std::pair<std::string, std::unordered_map<std::string, index_id_t>>(table_meta->GetTableName(),std::unordered_map<std::string,index_id_t>()));
+  }
+
+  for(auto &it:this->catalog_meta_->index_meta_pages_){
+    buf = this->buffer_pool_manager_->FetchPage(it.second)->GetData();
+    this->buffer_pool_manager_->UnpinPage(it.second,false);
+    IndexMetadata* index_meta;
+    IndexMetadata::DeserializeFrom(buf,index_meta,this->heap_);
+    if(next_index_id_<=it.first) next_index_id_ = it.first + 1;
+
+    table_id_t table_id = index_meta->GetTableId();
+    TableInfo* table_info = tables_.find(table_id)->second;
+    IndexInfo* index_info = IndexInfo::Create(this->heap_);
+    std::string table_name = table_info->GetTableName();
+    auto& table_index_map = this->index_names_.find(table_name)->second;
+    table_index_map.insert(std::pair<std::string,index_id_t>(index_meta->GetIndexName(),it.first));
+    index_info->Init(index_meta,table_info,this->buffer_pool_manager_);
+    this->indexes_.insert(std::pair<index_id_t,IndexInfo*>(it.first,index_info));
+  }
 ```
 
-index\_是该迭代器指向内容在叶节点中的下标。
-
-val为std::pair<key,value>，是迭代器指向内容的只读。（B+索引的迭代器是只读的，这是因为B+树的键值的更改必须要通过B+树的插入和删除完成，因而B+树执行插入删除可能使得迭代器失效。）
-
-### 6 B+ Tree Index
+### 3 表和索引的创建和删除
 
 ***
 
-B+树索引是通过 B+ tree index这个类向外部暴露的，另外B+树在根节点改变时要通过存储与INDEX_ROOT_PAGE_ID页的IndexRootPage更改索引Id到索引根节点的映射。
+#### 3.1 创建/删除表
 
-### 7 Source Code
+创建表时除了更新内存中的Catalog Manager中的映射关系之外还应该为其分配元数据页，并更新Catalog Meta Page中的id到元数据页的映射关系。另外还应当为该表创立独立的堆表对象，为堆表对象分配首页。
 
-由于源码过大，见附录。
+与之对应的，删除表时要释放表信息和堆表占用的数据页，更新映射关系。另外由于堆表可能占用很多页，那么删除表时就需要迭代地释放堆表页。
 
+#### 3.2 创建/删除索引
 
+和创建删除表类似地需要更新Catalog中的映射关系，以及Catalog Meta Page中持久化的元信息。
+
+但不同的是表建立需要额外分配堆表，而索引建立和删除则是要额外更新Index Root Page中的元信息。
+
+(IndexRootPage中存储的是索引ID到索引B+树的根所在页)。
+
+另外，创建索引需要调用堆表迭代器，将堆表中所有记录同步到B+树中，删除时则需要遍历删除B+树。
+
+注：根据OOP设计思想，涉及到B+树的操作部分全部由底层实现，Catalog层无感知，只需要确定B+树的键的类型。
 

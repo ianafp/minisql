@@ -142,7 +142,16 @@ private:
     // syn to table heap
   
   // insert the table content to the index
+  
   auto it_table_heap_ = this->table_info_->GetTableHeap()->Begin(nullptr);
+  if(it_table_heap_==this->table_info_->GetTableHeap()->End()) return res;
+  std::vector<Field> first_key_;
+  std::vector<RowId> row_id_;
+  for(auto &it:this->meta_data_->key_map_){
+      first_key_.push_back(*it_table_heap_->GetField(it));
+  }
+  if(res->ScanKey(Row(first_key_),row_id_,nullptr)) return res;
+
   while(it_table_heap_!=this->table_info_->GetTableHeap()->End()){
     vector<Field> key_field;
     for(auto &it:this->meta_data_->key_map_){
