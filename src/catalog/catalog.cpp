@@ -240,8 +240,9 @@ dberr_t CatalogManager::GetIndex(const std::string &table_name, const std::strin
 
 dberr_t CatalogManager::GetTableIndexes(const std::string &table_name, std::vector<IndexInfo *> &indexes) const {
   // ASSERT(false, "Not Implemented yet");
-  for(auto &it:this->indexes_){
-    indexes.push_back(it.second);
+  auto index_oftable = this->index_names_.find(table_name)->second;
+  for(auto &it:index_oftable){
+    indexes.push_back(this->indexes_.find(it.second)->second);
   }
   return DB_SUCCESS;
 }
