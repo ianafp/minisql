@@ -99,6 +99,8 @@ create table t1(a int, b char(20) unique, c float, primary key(a, c));
 
 该指令创建一个名为```t1```的表，表中的记录具有整数字段```a```，唯一的文本字段```b```和浮点数字段```c```，```a```和```c```是表的主键。
 
+创建数据表时，如果表中有```unique```修饰的字段，或是指定了主键，会为这些字段自动生成索引。
+
 ##### 2.2.3 Drop Table
 
 ```sql
@@ -115,7 +117,7 @@ drop table TABLE_NAME;
 show indexes;
 ```
 
-在控制台打印所有索引的索引名列表。
+在控制台打印所有索引的索引名列表，包括由```create table```自动为```unique```字段和```primary key```字段生成的索引。
 
 ##### 2.3.2 Create Index
 
@@ -186,7 +188,9 @@ update TABLE_NAME set IDENTIFIER1 = VALUE1, IDENTIFIER2 = VALUE2, ... where COND
 execfile FILENAME;
 ```
 
-从文件```FILENAME```（字符串参数）中逐行读取文本内容，并将其作为SQL指令执行，效果等同于将文件中的文本内容逐行输入MiniSQL控制台。每执行一条指令，MiniSQL会先输出执行结果再执行下一条指令，某条指令出错不会影响后续指令的执行。
+从文件```FILENAME```（字符串参数）中读取文本内容，并将其作为SQL指令执行，效果等同于将文件中的文本内容逐行输入MiniSQL控制台。
+
+每执行一条指令，MiniSQL会先输出执行结果再执行下一条指令，某条指令出错不会影响后续指令的执行。
 
 ##### 2.5.2 Quit
 
@@ -195,6 +199,8 @@ quit;
 ```
 
 关闭MiniSQL并收获一个贴心告别。
+
+```quit```指令是安全的退出方式，MiniSQL在收到```quit```指令后会将所有数据库内容转移到硬盘文件中，以便于下次启动时读取。若通过其它方式结束程序，则数据可能丢失。
 
 ### 3. 附加设计
 
@@ -214,7 +220,7 @@ dberr_t ExecuteEngine::LogicConditions(pSyntaxNode ast, ExecuteContext *context,
 
 ### 4. 源代码
 
-执行器的主体部分可参阅以下源码文件：
+由于执行器部分代码量较大，若要获知具体的实现细节，可参阅以下源码文件：
 
 - `src/include/executor/execute_engine.h`
 - `src/executor/execute_engine.cpp`
