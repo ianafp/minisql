@@ -48,44 +48,6 @@ std::string GetErrorIdentifier(dberr_t error) {
   return __Ids[error].c_str();
 }
 
-/* Tyoe cast from c_str to int
-*/
-int CStrToInt(const char *cstr) {
-  bool sign = (cstr[0] == '-');
-  int ret = 0;
-  for (int i = 1; cstr[i] != '\0'; ++i) {
-    ret *= 10;
-    ret += cstr[i] - '0';
-  }
-  if (sign) ret = -ret;
-  return ret;
-}
-
-/* Tyoe cast from c_str to float
- */
-float CStrToFloat(const char *cstr) {
-  bool sign = (cstr[0] == '-');
-  float ret = 0;
-  // Before point
-  int i = 1;
-  for (; cstr[i] >= '0' && cstr[i] <= '9'; ++i) {
-    ret *= 10;
-    ret += cstr[i] - '0';
-  }
-  // Check point
-  if (cstr[i] == '\0') {
-    if (sign) ret = -ret;
-    return ret;
-  }
-  // After point
-  float factor = 0.1;
-  for (i = i + 1; cstr[i] != '\0'; ++i) {
-    ret += (cstr[i] - '0') * factor;
-  }
-  if (sign) ret = -ret;
-  return ret;
-}
-
 /* Check if a numeric string is float
 */
 bool isFloat(char* cp) {
@@ -319,10 +281,10 @@ dberr_t ExecuteEngine::ExecuteShowDatabases(pSyntaxNode ast, ExecuteContext *con
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "[ExecuteShowDatabases]" << std::endl;
 #endif
-  printf("%ld database(s) available now.\n", dbs_.size());
   for (auto p : dbs_) {
     printf(" %s\n", p.first.c_str());
   }
+  printf("%ld database(s) available now.\n", dbs_.size());
   return DB_SUCCESS;
 }
 
@@ -363,10 +325,10 @@ dberr_t ExecuteEngine::ExecuteShowTables(pSyntaxNode ast, ExecuteContext *contex
     GetTables(TableList);               // Get table list from catalog manager
   if (GetReturn == DB_SUCCESS) {
     // Show all table name
-    printf("%ld table(s) in database %s.\n", TableList.size(), current_db_.c_str());
     for (auto T : TableList) {
       printf(" %s\n", T->GetTableName().c_str());
     }
+    printf("%ld table(s) in database %s.\n", TableList.size(), current_db_.c_str());
   } else {
     printf("Failed to get table(s) in database %s.\n", current_db_.c_str());
   }
@@ -485,7 +447,7 @@ dberr_t ExecuteEngine::ExecuteCreateTable(pSyntaxNode ast, ExecuteContext *conte
       printf("Failed to create table %s in database %s.\n", NewTableIdentifier.c_str(), current_db_.c_str());
       return DB_FAILED;
     }
-
+    
     // Create Indexes for primary keys and unique keys
     // Every unique column has a index respectly while all primary keys share one index.
     IndexInfo *__IndexInfo;
@@ -495,7 +457,7 @@ dberr_t ExecuteEngine::ExecuteCreateTable(pSyntaxNode ast, ExecuteContext *conte
       UniqueIndexColumn.push_back(__Col);
       CreateReturn = dbs_[current_db_]->catalog_mgr_->CreateIndex(
         NewTableIdentifier,
-        "__" + __Col + "__Index",
+        "__" + __Col + "_Index",
         UniqueIndexColumn,
         nullptr, 
         __IndexInfo
@@ -507,15 +469,12 @@ dberr_t ExecuteEngine::ExecuteCreateTable(pSyntaxNode ast, ExecuteContext *conte
     std::vector<std::string> PrimaryIndexColumn;
     for (auto __Col : PrimaryKeyList)
       PrimaryIndexColumn.push_back(__Col);
-    CreateReturn = dbs_[current_db_]->catalog_mgr_->CreateIndex(
-      NewTableIdentifier, 
-      "__" + NewTableIdentifier + "__PrimaryIndex",
-      PrimaryIndexColumn, 
-      nullptr, 
-      __IndexInfo
-    );
-    if (CreateReturn != DB_SUCCESS) {
-      printf("Failed to create index for primary keys.\n");
+    if (PrimaryIndexColumn.size() > 0) {
+      CreateReturn = dbs_[current_db_]->catalog_mgr_->CreateIndex(
+          NewTableIdentifier, "__" + NewTableIdentifier + "_Index_Primary", PrimaryIndexColumn, nullptr, __IndexInfo);
+      if (CreateReturn != DB_SUCCESS) {
+        printf("Failed to create index for primary keys.\n");
+      }
     }
 
   }
@@ -575,6 +534,7 @@ dberr_t ExecuteEngine::ExecuteShowIndexes(pSyntaxNode ast, ExecuteContext *conte
   if (GetReturn == DB_SUCCESS) {
 
     // List all indexes ..
+    int IndexCount = 0;
     std::vector<IndexInfo *> TableIndexes;
     for (auto Tp : TableList) {
       
@@ -586,9 +546,11 @@ dberr_t ExecuteEngine::ExecuteShowIndexes(pSyntaxNode ast, ExecuteContext *conte
       if (GetIndexesReturn == DB_SUCCESS) {
         // OUTPUT FORMAT:
         // index_name on table_name(attributes)
+        printf("%ld Indices in table %s:\n", TableIndexes.size(), Tp->GetTableName().c_str());
         for (auto Ip : TableIndexes) {
           
           printf(" %s on %s(", Ip->GetIndexName().c_str(), Tp->GetTableName().c_str());
+          ++IndexCount;
           for (auto Cp : Ip->GetIndexKeySchema()->GetColumns()) {
             // For each column in index Ip:
             if (Cp == (Ip->GetIndexKeySchema()->GetColumns())[0])
@@ -599,10 +561,14 @@ dberr_t ExecuteEngine::ExecuteShowIndexes(pSyntaxNode ast, ExecuteContext *conte
           }
           printf(")\n");
         }
+        
       } else {
         printf("Failed when search indexes from table %s.\n", Tp->GetTableName().c_str());
       }
     }
+
+    // Print number of index
+    printf("%d Indices in database %s.\n", IndexCount, current_db_.c_str());
 
   } else {
     printf("Failed to get table(s) in database %s.\n", current_db_.c_str());
@@ -634,6 +600,11 @@ dberr_t ExecuteEngine::ExecuteCreateIndex(pSyntaxNode ast, ExecuteContext *conte
     return DB_FAILED;
   }
   auto TableName = std::string(astIden->val_);
+  TableInfo* __Ti;
+  if (dbs_[current_db_]->catalog_mgr_->GetTable(TableName, __Ti) != DB_SUCCESS) {
+    printf("Table %s does not exist!\n", TableName.c_str());
+    return DB_FAILED;
+  }
 
   // Para 3: Column list
   astIden = astIden->next_;
@@ -647,18 +618,18 @@ dberr_t ExecuteEngine::ExecuteCreateIndex(pSyntaxNode ast, ExecuteContext *conte
   // Para 4: Index type (optional)
   //astIden = ast->next_;
   //if (astIden) Change index type;
-  printf("It's suprising that you can input command but MiniSQL doesn't made any response.\n");
-  printf("A new bug, right? But I can't tell why.\n");
-  printf("If you find [CREATEINDEX_SAFE_BOUNDARY] use Ctrl+F, you will arrive there in code.\n");
-  printf("As you can see, it's just an edge of abyss ...\n");
   
   IndexInfo *NewIndexInfo;
-  // But who knows what happened after that? ¡ý
+  if (dbs_[current_db_]->catalog_mgr_->GetIndex(TableName, NewIndexName, NewIndexInfo) == DB_SUCCESS) {
+    printf("There is already an index which named %s on table %s!\n", NewIndexName.c_str(), TableName.c_str());
+    return DB_FAILED;
+  }
+  NewIndexInfo = nullptr;
   dberr_t CreateReturn = 
     dbs_[current_db_]->catalog_mgr_->
-    CreateIndex(TableName, NewIndexName, NewIndexColumns, nullptr, NewIndexInfo);
+      CreateIndex(TableName, NewIndexName, NewIndexColumns, nullptr, NewIndexInfo);
   if (CreateReturn != DB_SUCCESS) {
-    printf("Failed to create index in table %s.\n", TableName.c_str());
+    printf("Failed to create index on table %s.\n", TableName.c_str());
     return DB_FAILED;
   }
   return DB_SUCCESS;
@@ -685,9 +656,9 @@ dberr_t ExecuteEngine::ExecuteDropIndex(pSyntaxNode ast, ExecuteContext *context
   dberr_t GetReturn = dbs_[current_db_]->catalog_mgr_->
     GetTables(TableList);                                   // Get table list from catalog manager
 
+  bool IndexFound = false;
   if (GetReturn == DB_SUCCESS) {
 
-    bool IndexFound = false;
     dberr_t DropReturn;
     IndexInfo *TargetIndexInfo;
 
@@ -700,11 +671,18 @@ dberr_t ExecuteEngine::ExecuteDropIndex(pSyntaxNode ast, ExecuteContext *context
           printf("Failed to drop index %s.\n", IndexName.c_str());
           return DB_FAILED;
         }
+        IndexFound = true;
       }
       if (IndexFound) break;
     }
     
   }
+
+  if (!IndexFound) {
+    printf("Index %s not found.\n", IndexName.c_str());
+    return DB_FAILED;
+  }
+
   return DB_SUCCESS;
 }
 
@@ -914,14 +892,13 @@ dberr_t ExecuteEngine::ExecuteInsert(pSyntaxNode ast, ExecuteContext *context) {
   }
   
   Row row = Row(__Fields);
-  bool InsertReturn =
-    __Ti->GetTableHeap()->InsertTuple(row, nullptr);
+  bool InsertReturn = __Ti->GetTableHeap()->InsertTuple(row, nullptr);
   if (!InsertReturn) {
     printf("Insert error.\n");
     return DB_FAILED;
   }
-  RowId row_id = row.GetRowId();    // RowId
 
+  RowId row_id = row.GetRowId();    // RowId
   // Insert new row to indexes
   dberr_t InsertEntryReturn;
   std::vector<Field> IndexFields;
@@ -949,6 +926,7 @@ dberr_t ExecuteEngine::ExecuteInsert(pSyntaxNode ast, ExecuteContext *context) {
       __Ti->GetTableHeap()->MarkDelete(row_id, nullptr);
       return DB_FAILED;
     }
+
   }
 
   return DB_SUCCESS;
@@ -1120,7 +1098,7 @@ dberr_t ExecuteEngine::ExecuteUpdate(pSyntaxNode ast, ExecuteContext *context) {
       for (auto f : OldFields) UpdateFields.push_back(Field(*f));
       // Update New row
       for (long unsigned int i = 0; i < UpdateIndexes.size(); ++i) {
-        UpdateFields[UpdateIndexes[i]] = UpdateFieldList[i];
+        UpdateFields[UpdateIndexes[i]] = *(new Field(UpdateFieldList[i]));
       }
       Row __newrow = Row(UpdateFields);
       // Update

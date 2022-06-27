@@ -185,16 +185,16 @@ dberr_t CatalogManager::CreateIndex(const std::string &table_name, const string 
                                     IndexInfo *&index_info) {
   auto it = this->table_names_.find(table_name);
   if(it==this->table_names_.end()) return DB_TABLE_NOT_EXIST;
-  auto it_index = this->index_names_.find(table_name)->second;
-  auto it_index_name_id = it_index.find(index_name);
-  if(it_index_name_id != it_index.end())
+  auto it_index = this->index_names_.find(table_name);
+  auto it_index_name_id = it_index->second.find(index_name);
+  if(it_index_name_id != it_index->second.end())
   {
     return DB_INDEX_ALREADY_EXIST;
   }
   // find the index name map for the table
   index_id_t index_id = next_index_id_++;
   if(next_index_id_==0) return DB_FAILED;
-  it_index.insert(std::pair<std::string,index_id_t>(index_name,index_id));
+  
   index_info = IndexInfo::Create(this->heap_);
   // fetch table info
   auto it_table = this->table_names_.find(table_name);
@@ -212,7 +212,8 @@ dberr_t CatalogManager::CreateIndex(const std::string &table_name, const string 
   
   index_info = IndexInfo::Create(this->heap_);
   index_info->Init(index_meta,table_info,this->buffer_pool_manager_);
-
+  it_index->second.insert(std::pair<std::string,index_id_t>(index_name,index_id));
+  this->indexes_.insert(std::pair<index_id_t,IndexInfo*>(index_id,index_info));
   // persist
   page_id_t index_meta_page_id;
   // new page for the meta page and the index root page
@@ -240,8 +241,9 @@ dberr_t CatalogManager::GetIndex(const std::string &table_name, const std::strin
 
 dberr_t CatalogManager::GetTableIndexes(const std::string &table_name, std::vector<IndexInfo *> &indexes) const {
   // ASSERT(false, "Not Implemented yet");
-  for(auto &it:this->indexes_){
-    indexes.push_back(it.second);
+  auto index_oftable = this->index_names_.find(table_name)->second;
+  for(auto &it:index_oftable){
+    indexes.push_back(this->indexes_.find(it.second)->second);
   }
   return DB_SUCCESS;
 }

@@ -52,7 +52,8 @@ TableIterator &TableIterator::operator++() {
     }
     page_ptr = reinterpret_cast<TablePage*>(buffer_pool_manager_->FetchPage(page_id)->GetData());
     buffer_pool_manager_->UnpinPage(page_id);
-    next_row_id.Set(page_id,-1);
+    // next_row_id.Set(page_id,-1);
+    content->SetRowId(RowId(page_id,-1));
   }
   // get next row id
   content->SetRowId(next_row_id);
