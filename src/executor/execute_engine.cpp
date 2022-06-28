@@ -3,9 +3,12 @@
 #include "executor/execute_engine.h"
 #include "glog/logging.h"
 
+<<<<<<< HEAD
 // Width of each column in selected table
 constexpr uint32_t DISPLAY_COLUMN_WIDTH = 12;
 
+=======
+>>>>>>> 2b7388bc63f9cfc8c17749722ee228eff2df665e
 extern "C" {
 int yyparse(void);
 //FILE *yyin;
@@ -364,7 +367,10 @@ dberr_t ExecuteEngine::ExecuteCreateTable(pSyntaxNode ast, ExecuteContext *conte
     uint32_t __Index = 0;
     auto astCol = astIden->next_->child_;
     std::vector<Column *> ColumnList;
+<<<<<<< HEAD
     std::vector<std::string> UniqueKeyList;
+=======
+>>>>>>> 2b7388bc63f9cfc8c17749722ee228eff2df665e
     std::vector<std::string> PrimaryKeyList;
 
     // Get parameters
@@ -373,8 +379,13 @@ dberr_t ExecuteEngine::ExecuteCreateTable(pSyntaxNode ast, ExecuteContext *conte
       if (astCol->type_ == kNodeColumnDefinition) {
         // Crisis check (TO DO)
         // bool IdentifierCollided = false;
+<<<<<<< HEAD
         
         std::string NewColumnName = std::string(astCol->child_->val_);
+=======
+        // Insertion
+        __Unique = (astCol->val_ && strcmp(astCol->val_, "unique") == 0) ? true : false;
+>>>>>>> 2b7388bc63f9cfc8c17749722ee228eff2df665e
         TypeId NewColumnType = GetTypeId(astCol->child_->next_->val_);
         __Unique = (astCol->val_ && strcmp(astCol->val_, "unique") == 0) ? true : false;
         if (__Unique) UniqueKeyList.push_back(NewColumnName);
@@ -469,6 +480,24 @@ dberr_t ExecuteEngine::ExecuteCreateTable(pSyntaxNode ast, ExecuteContext *conte
           NewTableIdentifier, "_" + NewTableIdentifier + "_Index_Primary", PrimaryIndexColumn, nullptr, __IndexInfo);
       if (CreateReturn != DB_SUCCESS) {
         printf("Failed to create index for primary keys.\n");
+      }
+    }
+
+    // Create Indexes for primary keys
+    IndexInfo *PrimaryIndexInfo;
+    std::vector<std::string> PrimaryIndexColumn;
+    for (auto __Col : PrimaryKeyList) {
+      PrimaryIndexColumn.clear();
+      PrimaryIndexColumn.push_back(__Col);
+      CreateReturn = dbs_[current_db_]->catalog_mgr_->CreateIndex(
+        NewTableIdentifier,
+        "__" + __Col + "__Index",
+        PrimaryIndexColumn,
+        nullptr,
+        PrimaryIndexInfo
+      );
+      if (CreateReturn != DB_SUCCESS) {
+        printf("Failed to create index for primary key %s.\n", __Col.c_str());
       }
     }
 
@@ -760,7 +789,11 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
   std::vector<uint32_t> SelectIndexes;
   // Find ..
   if (SelectColumnNames.size() > 0) {
+<<<<<<< HEAD
     // Select columns in vector SelectColumnNames
+=======
+
+>>>>>>> 2b7388bc63f9cfc8c17749722ee228eff2df665e
     for (auto ColumnStr : SelectColumnNames) {
       FindColumnReturn = __Ti->GetSchema()->GetColumnIndex(ColumnStr, __Idx);
       if (FindColumnReturn != DB_SUCCESS) {
@@ -768,6 +801,7 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
         return DB_FAILED;
       }
       SelectIndexes.push_back(__Idx);
+<<<<<<< HEAD
     }
   } else {
     // Select all columns
@@ -794,10 +828,23 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
   if (IteratorReturn != DB_SUCCESS) {
     printf("Index loading error!\n");
     return DB_FAILED;
+=======
+    }
+  } else {
+
+    // Select all columns
+    std::vector<Column *> __Col = __Ti->GetSchema()->GetColumns();
+    for (uint32_t i = 0; i < __Col.size(); ++i) {
+      SelectColumnNames.push_back(__Col[i]->GetName());
+      SelectIndexes.push_back(i);
+    }
+    printf("\n");
+>>>>>>> 2b7388bc63f9cfc8c17749722ee228eff2df665e
   }
 
   // Print title
   printf("+");
+<<<<<<< HEAD
   for (uint32_t i = 0; i < SelectColumnNames.size() * (DISPLAY_COLUMN_WIDTH + 3) - 1; ++i) printf("-");
   printf("+\n|");
   for (auto __Str : SelectColumnNames) printf(" %s |", CStringComplement(__Str.c_str(), DISPLAY_COLUMN_WIDTH));
@@ -879,6 +926,45 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
   // Print buttom
   printf("+");
   for (uint32_t i = 0; i < SelectColumnNames.size() * (DISPLAY_COLUMN_WIDTH + 3) - 1; ++i) printf("-");
+=======
+  for (uint32_t i = 0; i < SelectColumnNames.size() * 12; ++i) printf("-");
+  printf("+\n|");
+  for (auto __Str : SelectColumnNames) printf("%12s", __Str.c_str());
+  printf("|\n+");
+  for (uint32_t i = 0; i < SelectColumnNames.size() * 12; ++i) printf("-");
+  printf("+\n");
+
+  auto ConditionRoot = ast->child_->next_->next_;
+
+  // SELECT
+  uint32_t SelectedRow = 0;
+  dberr_t LogicReturn;
+  auto TableEnd = __Ti->GetTableHeap()->End();
+  for (; CurrentIterator != TableEnd; ++CurrentIterator) {
+    ExecuteContext SelectContext;
+    LogicReturn = LogicConditions(ConditionRoot, &SelectContext, *CurrentIterator, __Ti->GetSchema());
+    if (LogicReturn != DB_SUCCESS) {
+      printf("Failed to analyze logic conditions.\n");
+      return DB_FAILED;
+    }
+
+    if (SelectContext.condition_) {
+      // Select this row:
+      ++SelectedRow;
+      printf("|");
+      for (auto i : SelectIndexes) {
+        printf("%12s", (CurrentIterator->GetField(i)->IsNull()) ?
+              "(null)" : CurrentIterator->GetField(i)->GetData());
+      }
+      printf("|\n");
+    }
+  }
+  // SELECT END
+
+  // Print buttom
+  printf("+");
+  for (uint32_t i = 0; i < SelectColumnNames.size() * 12; ++i) printf("-");
+>>>>>>> 2b7388bc63f9cfc8c17749722ee228eff2df665e
   printf("+\n");
   printf("%u row(s) matched in total.\n", SelectedRow);
 
@@ -931,6 +1017,7 @@ dberr_t ExecuteEngine::ExecuteInsert(pSyntaxNode ast, ExecuteContext *context) {
         bool WrongType = false;
         switch (astValue->type_) {
           case kNodeNumber:
+<<<<<<< HEAD
             if (ColumnType == kTypeInt) {
               if (isFloat(astValue->val_)) 
                 WrongType = true;
@@ -940,6 +1027,14 @@ dberr_t ExecuteEngine::ExecuteInsert(pSyntaxNode ast, ExecuteContext *context) {
               __Fields.push_back(Field(kTypeFloat, static_cast<float>(atof(astValue->val_))));
             } else {
               WrongType = true;
+=======
+            if (isFloat(astValue->val_)) {
+              if (ColumnType != kTypeFloat) WrongType = true;
+              __Fields.push_back(Field(kTypeFloat, (float)atof(astValue->val_)));
+            } else {
+              if (ColumnType != kTypeInt) WrongType = true;
+              __Fields.push_back(Field(kTypeInt, atoi(astValue->val_)));
+>>>>>>> 2b7388bc63f9cfc8c17749722ee228eff2df665e
             }
             break;
           case kNodeString:
@@ -984,12 +1079,18 @@ dberr_t ExecuteEngine::ExecuteInsert(pSyntaxNode ast, ExecuteContext *context) {
   }
   
   Row row = Row(__Fields);
+<<<<<<< HEAD
   bool InsertReturn = __Ti->GetTableHeap()->InsertTuple(row, nullptr);
+=======
+  bool InsertReturn =
+    __Ti->GetTableHeap()->InsertTuple(row, nullptr);
+>>>>>>> 2b7388bc63f9cfc8c17749722ee228eff2df665e
   if (!InsertReturn) {
     printf("Insert error.\n");
     return DB_FAILED;
   }
 
+<<<<<<< HEAD
   RowId row_id = row.GetRowId();    // RowId
   // Insert new row to indexes
   dberr_t InsertEntryReturn;
@@ -1019,6 +1120,10 @@ dberr_t ExecuteEngine::ExecuteInsert(pSyntaxNode ast, ExecuteContext *context) {
       return DB_FAILED;
     }
   }
+=======
+  // Insert new row to indexes
+  // TO DO ..
+>>>>>>> 2b7388bc63f9cfc8c17749722ee228eff2df665e
 
   return DB_SUCCESS;
 }
@@ -1322,7 +1427,10 @@ dberr_t ExecuteEngine::ExecuteQuit(pSyntaxNode ast, ExecuteContext *context) {
 
 dberr_t ExecuteEngine::LogicConditions(pSyntaxNode ast, ExecuteContext *context, const Row &row, Schema *schema) {
   
+<<<<<<< HEAD
   if (context->flag_quit_) return DB_SUCCESS;
+=======
+>>>>>>> 2b7388bc63f9cfc8c17749722ee228eff2df665e
   if (ast == nullptr) {
     // Consider NULL as true
     context->condition_ = true;
@@ -1450,6 +1558,7 @@ dberr_t ExecuteEngine::LogicConditions(pSyntaxNode ast, ExecuteContext *context,
       return DB_FAILED;
     }
 
+<<<<<<< HEAD
   }
   return DB_SUCCESS;
 }
@@ -1569,5 +1678,8 @@ dberr_t ExecuteEngine::SelectIterator(pSyntaxNode condition, ExecuteContext *con
     return DB_FAILED;
   }
 
+=======
+  }
+>>>>>>> 2b7388bc63f9cfc8c17749722ee228eff2df665e
   return DB_SUCCESS;
 }
