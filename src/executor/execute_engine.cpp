@@ -455,13 +455,8 @@ dberr_t ExecuteEngine::ExecuteCreateTable(pSyntaxNode ast, ExecuteContext *conte
     for (auto __Col : UniqueKeyList) {
       UniqueIndexColumn.clear();
       UniqueIndexColumn.push_back(__Col);
-      CreateReturn = dbs_[current_db_]->catalog_mgr_->CreateIndex(
-        NewTableIdentifier,
-        "__" + __Col + "_Index",
-        UniqueIndexColumn,
-        nullptr, 
-        __IndexInfo
-      );
+      CreateReturn = dbs_[current_db_]->catalog_mgr_->CreateIndex(NewTableIdentifier, "_" + __Col + "_Index",
+                                                                  UniqueIndexColumn, nullptr, __IndexInfo);
       if (CreateReturn != DB_SUCCESS) {
         printf("Failed to create index for unique key %s.\n", __Col.c_str());
       }
@@ -471,7 +466,7 @@ dberr_t ExecuteEngine::ExecuteCreateTable(pSyntaxNode ast, ExecuteContext *conte
       PrimaryIndexColumn.push_back(__Col);
     if (PrimaryIndexColumn.size() > 0) {
       CreateReturn = dbs_[current_db_]->catalog_mgr_->CreateIndex(
-          NewTableIdentifier, "__" + NewTableIdentifier + "_Index_Primary", PrimaryIndexColumn, nullptr, __IndexInfo);
+          NewTableIdentifier, "_" + NewTableIdentifier + "_Index_Primary", PrimaryIndexColumn, nullptr, __IndexInfo);
       if (CreateReturn != DB_SUCCESS) {
         printf("Failed to create index for primary keys.\n");
       }
@@ -546,17 +541,19 @@ dberr_t ExecuteEngine::ExecuteShowIndexes(pSyntaxNode ast, ExecuteContext *conte
       if (GetIndexesReturn == DB_SUCCESS) {
         // OUTPUT FORMAT:
         // index_name on table_name(attributes)
-        printf("%ld Indices in table %s:\n", TableIndexes.size(), Tp->GetTableName().c_str());
         for (auto Ip : TableIndexes) {
           
-          printf(" %s on %s(", Ip->GetIndexName().c_str(), Tp->GetTableName().c_str());
+          // Hide indices create by CREATE TABLE
+          if (Ip->GetIndexName().length() > 0 && Ip->GetIndexName().at(0) == '_') continue;
+
+          printf("  %s on %s(", Ip->GetIndexName().c_str(), Tp->GetTableName().c_str());
           ++IndexCount;
-          for (auto Cp : Ip->GetIndexKeySchema()->GetColumns()) {
+          if (Ip->GetIndexKeySchema()->GetColumns().size() > 0) {
             // For each column in index Ip:
-            if (Cp == (Ip->GetIndexKeySchema()->GetColumns())[0])
-              printf("%s", Cp->GetName().c_str());
-            else
-              printf(",%s", Cp->GetName().c_str());
+            printf("%s", Ip->GetIndexKeySchema()->GetColumns()[0]->GetName().c_str());
+            for (uint32_t i = 1; i < Ip->GetIndexKeySchema()->GetColumns().size(); ++i) {
+              printf(", %s", Ip->GetIndexKeySchema()->GetColumns()[i]->GetName().c_str());
+            }
             // I'm nearly dizzy #$^@(%SD^(V)@%@^+:+@!%_^
           }
           printf(")\n");
@@ -614,6 +611,17 @@ dberr_t ExecuteEngine::ExecuteCreateIndex(pSyntaxNode ast, ExecuteContext *conte
     NewIndexColumns.push_back(std::string(astCol->val_));
     astCol = astCol->next_;     // Next identifier
   }
+  dberr_t GetReturn;
+  uint32_t __Idx;
+  std::vector<uint32_t> KeyMap;
+  for (auto s : NewIndexColumns) {
+    GetReturn = __Ti->GetSchema()->GetColumnIndex(s, __Idx);
+    if (GetReturn != DB_SUCCESS) {
+      printf("Column %s does not exist!\n", s.c_str());
+      return DB_FAILED;
+    }
+    KeyMap.push_back(__Idx);
+  }
 
   // Para 4: Index type (optional)
   //astIden = ast->next_;
@@ -628,10 +636,38 @@ dberr_t ExecuteEngine::ExecuteCreateIndex(pSyntaxNode ast, ExecuteContext *conte
   dberr_t CreateReturn = 
     dbs_[current_db_]->catalog_mgr_->
       CreateIndex(TableName, NewIndexName, NewIndexColumns, nullptr, NewIndexInfo);
-  if (CreateReturn != DB_SUCCESS) {
+  if (CreateReturn != DB_SUCCESS || NewIndexInfo == nullptr) {
     printf("Failed to create index on table %s.\n", TableName.c_str());
     return DB_FAILED;
   }
+
+  // Full table insert!
+  dberr_t InsertEntryReturn;
+  std::vector<Field> IndexFields;
+  auto CurrentIterator = __Ti->GetTableHeap()->Begin(nullptr);
+  auto TableEnd = __Ti->GetTableHeap()->End();
+
+  uint32_t SelectedRow = 0;
+  for (; CurrentIterator != TableEnd; ++CurrentIterator) {
+
+    // Select this row:
+    IndexFields.clear();
+    for (auto i : KeyMap)
+      IndexFields.push_back(Field(*(CurrentIterator->GetField(i))));
+    InsertEntryReturn = NewIndexInfo->GetIndex()->InsertEntry(Row(IndexFields), CurrentIterator->GetRowId(), nullptr);
+
+    if (InsertEntryReturn != DB_SUCCESS) {
+      printf("Construct insert error. There may be duplicate value in index column(s).\n");
+      dberr_t DropReturn = dbs_[current_db_]->catalog_mgr_->DropIndex(TableName, NewIndexName);
+      if (DropReturn != DB_SUCCESS) {
+        printf("Failed to rollback creation of index %s.\n", NewIndexName.c_str());
+      }
+      return DB_FAILED;
+    }
+    ++SelectedRow;
+  }
+  printf("Successfully create %s with %u row(s).\n", NewIndexName.c_str(), SelectedRow);
+
   return DB_SUCCESS;
 }
 
@@ -724,7 +760,6 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
   std::vector<uint32_t> SelectIndexes;
   // Find ..
   if (SelectColumnNames.size() > 0) {
-
     // Select columns in vector SelectColumnNames
     for (auto ColumnStr : SelectColumnNames) {
       FindColumnReturn = __Ti->GetSchema()->GetColumnIndex(ColumnStr, __Idx);
@@ -735,7 +770,6 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
       SelectIndexes.push_back(__Idx);
     }
   } else {
-
     // Select all columns
     std::vector<Column *> __Col = __Ti->GetSchema()->GetColumns();
     for (uint32_t i = 0; i < __Col.size(); ++i) {
@@ -743,6 +777,23 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
       SelectIndexes.push_back(i);
     }
     printf("\n");
+  }
+
+  auto ConditionRoot = ast->child_->next_->next_;
+
+  // ================ < SELECT > ================
+  uint32_t SelectedRow = 0;
+  dberr_t LogicReturn;
+  ExecuteContext IteratorContext;
+
+  IndexInfo *__IndexInfo = nullptr;
+  RowId BeginID, EndID;
+  bool BoundaryCovered;
+  dberr_t IteratorReturn =
+      SelectIterator(ConditionRoot, &IteratorContext, __Ti, __IndexInfo, BeginID, EndID, BoundaryCovered);
+  if (IteratorReturn != DB_SUCCESS) {
+    printf("Index loading error!\n");
+    return DB_FAILED;
   }
 
   // Print title
@@ -754,35 +805,76 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
   for (uint32_t i = 0; i < SelectColumnNames.size() * (DISPLAY_COLUMN_WIDTH + 3) - 1; ++i) printf("-");
   printf("+\n");
 
-  auto ConditionRoot = ast->child_->next_->next_;
+  if (IteratorContext.index_ind >= 0) {
 
-  // SELECT
-  uint32_t SelectedRow = 0;
-  dberr_t LogicReturn;
-  auto TableEnd = __Ti->GetTableHeap()->End();
-  for (; CurrentIterator != TableEnd; ++CurrentIterator) {
-    ExecuteContext SelectContext;
-    LogicReturn = LogicConditions(ConditionRoot, &SelectContext, *CurrentIterator, __Ti->GetSchema());
-    if (LogicReturn != DB_SUCCESS) {
-      printf("Failed to analyze logic conditions.\n");
-      return DB_FAILED;
+    // Iterate by Index
+
+    // Test code
+    printf("  Index Name: %s\n", __IndexInfo->GetIndexName().c_str());
+    printf("  Index Key Size: %ld\n", __IndexInfo->GetIndexKeySchema()->GetColumns().size());
+    printf("  First Identifier: %s\n", __IndexInfo->GetIndexKeySchema()->GetColumns()[0]->GetName().c_str());
+    printf("IndexIterator will work on next version ...\n");
+    
+    uint32_t KeySize = (4U << __IndexInfo->BpTreeType());
+    switch (KeySize) {
+      // PROCESS OF INDEX INTERATE:
+      //  1. Get Iterator
+      //  2. For each loop:
+      //       Condition judge
+      //       Display this row
+      case 4:
+        __IndexInfo->GetBTreeIndex4()->GetBeginIterator();
+        break;
+      case 8:
+        __IndexInfo->GetBTreeIndex8()->GetBeginIterator();
+        break;
+      case 16:
+        __IndexInfo->GetBTreeIndex16()->GetBeginIterator();
+        break;
+      case 32:
+        __IndexInfo->GetBTreeIndex32()->GetBeginIterator();
+        break;
+      case 64:
+        __IndexInfo->GetBTreeIndex64()->GetBeginIterator();
+        break;
+      case 128:
+        __IndexInfo->GetBTreeIndex128()->GetBeginIterator();
+        break;
+      default:
+        printf("Unexpected index key size (%u).\n", KeySize);
+        return DB_FAILED;
     }
 
-    if (SelectContext.condition_) {
-      // Select this row:
-      ++SelectedRow;
-      printf("|");
-      // Print columns
-      for (auto i : SelectIndexes) {
-        printf(" %s |",
-          CStringComplement(
-            (CurrentIterator->GetField(i)->IsNull()) ? "(null)" : CurrentIterator->GetField(i)->GetData(),
-            DISPLAY_COLUMN_WIDTH));
+  } else {
+
+    // Full Iterate
+
+    auto TableEnd = __Ti->GetTableHeap()->End();
+    for (; CurrentIterator != TableEnd; ++CurrentIterator) {
+      ExecuteContext SelectContext;
+      LogicReturn = LogicConditions(ConditionRoot, &SelectContext, *CurrentIterator, __Ti->GetSchema());
+      if (LogicReturn != DB_SUCCESS) {
+        printf("Failed to analyze logic conditions.\n");
+        return DB_FAILED;
       }
-      printf("\n");
+
+      if (SelectContext.condition_) {
+        // Select this row:
+        ++SelectedRow;
+        printf("|");
+        // Print columns
+        for (auto i : SelectIndexes) {
+          printf(" %s |",
+            CStringComplement(
+              (CurrentIterator->GetField(i)->IsNull()) ? "(null)" : CurrentIterator->GetField(i)->GetData(),
+              DISPLAY_COLUMN_WIDTH));
+        }
+        printf("\n");
+      }
     }
+
   }
-  // SELECT END
+  // ============== < SELECT END > ==============
 
   // Print buttom
   printf("+");
@@ -845,7 +937,7 @@ dberr_t ExecuteEngine::ExecuteInsert(pSyntaxNode ast, ExecuteContext *context) {
               else
                 __Fields.push_back(Field(kTypeInt, atoi(astValue->val_)));
             } else if (ColumnType == kTypeFloat) {
-              __Fields.push_back(Field(kTypeFloat, (float)atof(astValue->val_)));
+              __Fields.push_back(Field(kTypeFloat, static_cast<float>(atof(astValue->val_))));
             } else {
               WrongType = true;
             }
@@ -926,7 +1018,6 @@ dberr_t ExecuteEngine::ExecuteInsert(pSyntaxNode ast, ExecuteContext *context) {
       __Ti->GetTableHeap()->MarkDelete(row_id, nullptr);
       return DB_FAILED;
     }
-
   }
 
   return DB_SUCCESS;
@@ -1231,6 +1322,7 @@ dberr_t ExecuteEngine::ExecuteQuit(pSyntaxNode ast, ExecuteContext *context) {
 
 dberr_t ExecuteEngine::LogicConditions(pSyntaxNode ast, ExecuteContext *context, const Row &row, Schema *schema) {
   
+  if (context->flag_quit_) return DB_SUCCESS;
   if (ast == nullptr) {
     // Consider NULL as true
     context->condition_ = true;
@@ -1274,6 +1366,12 @@ dberr_t ExecuteEngine::LogicConditions(pSyntaxNode ast, ExecuteContext *context,
     }
 
   } else if (ast->type_ == kNodeCompareOperator) {
+
+    // True (by Iterator Selector)
+    if (strcmp(ast->val_, "TRUE") == 0) {
+      context->condition_ = true;
+      return DB_SUCCESS;
+    }
 
     // Take data
     bool LeftNull = false, RightNull = false;
@@ -1353,5 +1451,123 @@ dberr_t ExecuteEngine::LogicConditions(pSyntaxNode ast, ExecuteContext *context,
     }
 
   }
+  return DB_SUCCESS;
+}
+
+dberr_t ExecuteEngine::SelectIterator(pSyntaxNode condition, ExecuteContext *context, const TableInfo *table,
+                                      IndexInfo *&index, RowId &begin_id, RowId &end_id, bool &covered) {
+  if (condition == nullptr) {
+    return DB_SUCCESS;
+  }
+
+  if (context->index_ind >= 0) {
+    // Have found a index
+    return DB_SUCCESS;
+  }
+
+  if (condition->type_ == kNodeConditions) {
+
+    SelectIterator(condition->child_, context, table, index, begin_id, end_id, covered);
+
+  } else if (condition->type_ == kNodeConnector) {
+
+    SelectIterator(condition->child_, context, table, index, begin_id, end_id, covered);
+    SelectIterator(condition->child_->next_, context, table, index, begin_id, end_id, covered);
+
+  } else if (condition->type_ == kNodeCompareOperator) {
+
+    const uint32_t NO_IDENTIFIER = 23333333;  // It is not an identifier
+    uint32_t LeftIndex = NO_IDENTIFIER, RightIndex = NO_IDENTIFIER;
+
+    if (strcmp(condition->val_, "<>") != 0 && strcmp(condition->val_, "!=") != 0) {
+      // Choose this identifier
+      if (condition->child_->next_->type_ == kNodeIdentifier)
+        table->GetSchema()->GetColumnIndex(std::string(condition->child_->next_->val_), RightIndex);
+      if (condition->child_->type_ == kNodeIdentifier)
+        table->GetSchema()->GetColumnIndex(std::string(condition->child_->val_), LeftIndex);
+      if (LeftIndex == NO_IDENTIFIER && RightIndex != NO_IDENTIFIER) context->index_ind = RightIndex;
+      if (LeftIndex != NO_IDENTIFIER && RightIndex == NO_IDENTIFIER) context->index_ind = LeftIndex;
+    }
+
+    if (context->index_ind >= 0) {
+      // Get IndexInfo
+      bool founded = false;
+      uint32_t IndexKeyIndex;
+      std::vector<IndexInfo *> TableIndexes;
+      dbs_[current_db_]->catalog_mgr_->GetTableIndexes(table->GetTableName(), TableIndexes);
+      for (auto __Idx : TableIndexes) {
+        table->GetSchema()->GetColumnIndex(__Idx->GetIndexKeySchema()->GetColumns()[0]->GetName(), IndexKeyIndex);
+        if (static_cast<int>(__Idx->GetIndexKeySchema()->GetColumns().size()) == 1 &&
+            static_cast<int>(IndexKeyIndex) == context->index_ind) {
+          // Choose this index!
+          index = __Idx;
+          founded = true;
+          break;
+        }
+      }
+      if (!founded) {
+        context->index_ind = -1;
+        return DB_SUCCESS;
+      }
+
+      // Find RowId of boundary condition value
+      auto BoundaryValue = (context->index_ind == static_cast<int>(LeftIndex)) ? condition->child_->next_->val_
+                                                                               : condition->child_->val_;
+      std::vector<Field> BoundaryField;
+      switch (index->GetIndexKeySchema()->GetColumns()[0]->GetType()) {
+        case kTypeInt:
+          BoundaryField.push_back(Field(kTypeInt, atoi(BoundaryValue)));
+          break;
+        case kTypeFloat:
+          BoundaryField.push_back(Field(kTypeFloat, static_cast<float>(atof(BoundaryValue))));
+          break;
+        case kTypeChar:
+          BoundaryField.push_back(
+              Field(kTypeChar, BoundaryValue, table->GetSchema()->GetColumns()[context->index_ind]->GetLength(), true));
+          break;
+        default:
+          printf("Comparation \"%s %s %s\" cannot match the schema of index %s.\n", condition->child_->val_,
+                 condition->val_, condition->child_->next_->val_, index->GetIndexName().c_str());
+          context->index_ind = -1;
+          return DB_FAILED;
+      }
+      std::vector<RowId> ScanKeyResult;
+      dberr_t ScanReturn = index->GetIndex()->ScanKey(Row(BoundaryField), ScanKeyResult, nullptr);
+      if (ScanReturn != DB_SUCCESS) {
+        printf("Value %s does not exist in index %s.\n", BoundaryValue, index->GetIndexName().c_str());
+        context->index_ind = -1;
+        return DB_FAILED;
+      }
+
+      // Set index search range
+      if (strcmp(condition->val_, "=") == 0) {
+        begin_id = end_id = ScanKeyResult[0];
+        covered = true;
+      } else if (strcmp(condition->val_, "<=") == 0) {
+        begin_id = INVALID_ROWID, end_id = ScanKeyResult[0];
+        covered = true;
+      } else if (strcmp(condition->val_, ">=") == 0) {
+        begin_id = ScanKeyResult[0], end_id = INVALID_ROWID;
+        covered = true;
+      } else if (strcmp(condition->val_, "<") == 0) {
+        begin_id = INVALID_ROWID, end_id = ScanKeyResult[0];
+        covered = false;
+      } else if (strcmp(condition->val_, ">") == 0) {
+        begin_id = ScanKeyResult[0], end_id = INVALID_ROWID;
+        covered = false;
+      } else {
+        printf("Unexpected comparison operator.\n");
+        context->index_ind = -1;
+        return DB_FAILED;
+      }
+
+      // Set condition to always true
+      strcpy(condition->val_, "TRUE");
+    }
+
+  } else {
+    return DB_FAILED;
+  }
+
   return DB_SUCCESS;
 }

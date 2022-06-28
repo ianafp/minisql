@@ -20,6 +20,7 @@ extern "C" {
 struct ExecuteContext {
   bool flag_quit_{false};
   bool condition_{true};
+  int index_ind{-1};
   Transaction *txn_{nullptr};
 };
 
@@ -88,9 +89,14 @@ private:
 
   dberr_t ExecuteQuit(pSyntaxNode ast, ExecuteContext *context);
 
-  // Extra functions (for condition judgement)
-
+  // Extra function: Condition judgement
+  // Judge whether this data row satisfies the condition basing on the syntax tree
   dberr_t LogicConditions(pSyntaxNode ast, ExecuteContext *context, const Row &row, Schema* schema);
+
+  // Extra function: Iterator selector
+  // Find the first identifier with available index among conditions
+  dberr_t SelectIterator(pSyntaxNode condition, ExecuteContext *context, const TableInfo *table, IndexInfo *&index,
+                         RowId &begin_id, RowId &end_id, bool &covered);
 
 private:
   [[maybe_unused]] std::unordered_map<std::string, DBStorageEngine *> dbs_;  /** all opened databases */

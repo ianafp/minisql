@@ -99,7 +99,43 @@ public:
   }
 
   inline Index *GetIndex() { return index_; }
-
+  inline int BpTreeType(){
+    uint32_t key_size = 4;
+    std::vector<Column*> cols = key_schema_->GetColumns();
+    uint32_t key_len = 0;
+    for(auto &it :cols){
+      key_len += it->GetSerializedSize();
+    }
+    assert(key_len<=128);
+    while(key_size<key_len) key_size<<=1;
+    switch(key_size){
+      case 4: return 0;
+      case 8: return 1;
+      case 16: return 2;
+      case 32: return 3;
+      case 64: return 4;
+      case 128: return 5;
+      default: return -1;
+    }
+  }
+  inline BP_TREE_INDEX128* GetBTreeIndex128(){
+    return reinterpret_cast<BP_TREE_INDEX128*>(this->index_);
+  }
+  inline BP_TREE_INDEX64* GetBTreeIndex64(){
+    return reinterpret_cast<BP_TREE_INDEX64*>(this->index_);
+  }
+  inline BP_TREE_INDEX32* GetBTreeIndex32(){
+    return reinterpret_cast<BP_TREE_INDEX32*>(this->index_);
+  }
+  inline BP_TREE_INDEX16* GetBTreeIndex16(){
+    return reinterpret_cast<BP_TREE_INDEX16*>(this->index_);
+  }
+  inline BP_TREE_INDEX8* GetBTreeIndex8(){
+    return reinterpret_cast<BP_TREE_INDEX8*>(this->index_);
+  }
+  inline BP_TREE_INDEX4* GetBTreeIndex4(){
+    return reinterpret_cast<BP_TREE_INDEX4*>(this->index_);
+  }
   inline std::string GetIndexName() { return meta_data_->GetIndexName(); }
 
   inline IndexSchema *GetIndexKeySchema() { return key_schema_; }
