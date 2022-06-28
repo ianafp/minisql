@@ -1,9 +1,6 @@
-create database db0;
-show databases;
+
 use db0;
-show tables;
-create table t1(a int, b char(20) unique, c float, primary key(a, c));
-create index idx1 on t1(a, b);
-insert into t1 values(1, "aaa", null, 2.33);
+
 select * from t1;
+select * from t1 where b > 3.0;
 quit;
