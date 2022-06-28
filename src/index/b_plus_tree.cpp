@@ -19,7 +19,7 @@ BPLUSTREE_TYPE::BPlusTree(index_id_t index_id, BufferPoolManager *buffer_pool_ma
   if(!index_root_page->GetRootId(this->index_id_,&this->root_page_id_)){
     this->root_page_id_ = INVALID_PAGE_ID;
   }
-  this->first_page_id_ = INVALID_PAGE_ID;
+  // this->first_page_id_ = INVALID_PAGE_ID;
 }
 
 INDEX_TEMPLATE_ARGUMENTS
