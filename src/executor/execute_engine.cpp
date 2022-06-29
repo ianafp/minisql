@@ -1,4 +1,5 @@
 #include <cstdio>
+#include <chrono>
 #include <fstream>
 #include "executor/execute_engine.h"
 #include "glog/logging.h"
@@ -657,7 +658,7 @@ dberr_t ExecuteEngine::ExecuteCreateIndex(pSyntaxNode ast, ExecuteContext *conte
     InsertEntryReturn = NewIndexInfo->GetIndex()->InsertEntry(Row(IndexFields), CurrentIterator->GetRowId(), nullptr);
 
     if (InsertEntryReturn != DB_SUCCESS) {
-      printf("Construct insert error. There may be duplicate value in index column(s).\n");
+      printf("Construct index error. There may be duplicate value in index column(s).\n");
       dberr_t DropReturn = dbs_[current_db_]->catalog_mgr_->DropIndex(TableName, NewIndexName);
       if (DropReturn != DB_SUCCESS) {
         printf("Failed to rollback creation of index %s.\n", NewIndexName.c_str());
@@ -805,16 +806,51 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
   for (uint32_t i = 0; i < SelectColumnNames.size() * (DISPLAY_COLUMN_WIDTH + 3) - 1; ++i) printf("-");
   printf("+\n");
 
+  // ============= < SELECT BEGIN > =============
+  auto SelectBegin = std::chrono::steady_clock::now();
+
   if (IteratorContext.index_ind >= 0) {
 
+    // Process boundary
+    // Table Row => Fields (of Index Schema) => Index Row => Iterator
+
+    if (!__IndexInfo) {
+      printf("Iterator selector chooses a null index pointer!\n");
+      return DB_FAILED;
+    }
+
+    bool ID2RowReturn;
+    Row BeginRow = Row(BeginID), EndRow = Row(EndID);
+    std::vector<uint32_t> KeyMap;
+    std::vector<Field> BeginFields, EndFields;
+    for (auto __Col : __IndexInfo->GetIndexKeySchema()->GetColumns()) {
+      FindColumnReturn = __Ti->GetSchema()->GetColumnIndex(__Col->GetName(), __Idx);
+      if (FindColumnReturn != DB_SUCCESS) {
+        printf("Column %s in index %s not found!\n", __Col->GetName().c_str(), __IndexInfo->GetIndexName().c_str());
+        return DB_FAILED;
+      }
+      KeyMap.push_back(__Idx);
+    }
+
+    if (!(BeginID == INVALID_ROWID)) {  // What? RowId does not have operator!= ?!
+      ID2RowReturn = __Ti->GetTableHeap()->GetTuple(&BeginRow, nullptr);
+      if (!ID2RowReturn) {
+        printf("Index %s provides wrong RowID when determining search range begining.\n", __IndexInfo->GetIndexName().c_str());
+        return DB_FAILED;
+      }
+      for (auto __Key : KeyMap) BeginFields.push_back(Field(*(BeginRow.GetField(__Key))));
+    }
+    if (!(EndID == INVALID_ROWID)) {
+      ID2RowReturn = __Ti->GetTableHeap()->GetTuple(&EndRow, nullptr);
+      if (!ID2RowReturn) {
+        printf("Index %s provides wrong RowID when determining search range end.\n", __IndexInfo->GetIndexName().c_str());
+        return DB_FAILED;
+      }
+      for (auto __Key : KeyMap) EndFields.push_back(Field(*(EndRow.GetField(__Key))));
+    }
+    
     // Iterate by Index
 
-    // Test code
-    printf("  Index Name: %s\n", __IndexInfo->GetIndexName().c_str());
-    printf("  Index Key Size: %ld\n", __IndexInfo->GetIndexKeySchema()->GetColumns().size());
-    printf("  First Identifier: %s\n", __IndexInfo->GetIndexKeySchema()->GetColumns()[0]->GetName().c_str());
-    printf("IndexIterator will work on next version ...\n");
-    
     uint32_t KeySize = (4U << __IndexInfo->BpTreeType());
     switch (KeySize) {
       // PROCESS OF INDEX INTERATE:
@@ -822,23 +858,306 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
       //  2. For each loop:
       //       Condition judge
       //       Display this row
-      case 4:
-        __IndexInfo->GetBTreeIndex4()->GetBeginIterator();
+      case 4: {
+
+        IndexInfo::INDEX_KEY_TYPE4 BeginIndexKey, EndIndexKey;
+        if (!(BeginID == INVALID_ROWID)) {
+          Row BeginIndexRow = Row(BeginFields);
+          BeginIndexKey.SerializeFromKey(BeginIndexRow, __IndexInfo->GetIndexKeySchema());
+        }
+        if (!(EndID == INVALID_ROWID)) {
+          Row EndIndexRow = Row(EndFields);
+          EndIndexKey.SerializeFromKey(EndIndexRow, __IndexInfo->GetIndexKeySchema());
+        }
+        auto CurrentIndexIterator = (BeginID == INVALID_ROWID)
+                                        ? __IndexInfo->GetBTreeIndex4()->GetBeginIterator()
+                                        : __IndexInfo->GetBTreeIndex4()->GetBeginIterator(BeginIndexKey);
+        if (!BoundaryCovered && !(BeginID == INVALID_ROWID)) CurrentIndexIterator++;
+        auto IndexEnd = (EndID == INVALID_ROWID) ? __IndexInfo->GetBTreeIndex4()->GetEndIterator()
+                                                 : __IndexInfo->GetBTreeIndex4()->GetBeginIterator(EndIndexKey);
+        if (BoundaryCovered && !(EndID == INVALID_ROWID)) IndexEnd++;
+
+        // Main Loop
+        bool GetReturn;
+        for (; CurrentIndexIterator != IndexEnd; ++CurrentIndexIterator) {
+          ExecuteContext SelectContext;
+          Row thisRow = Row((*CurrentIndexIterator).second);
+          GetReturn =  __Ti->GetTableHeap()->GetTuple(&thisRow, nullptr);
+          if (!GetReturn) {
+            printf("Index %s provides wrong RowID when fetching data.\n", __IndexInfo->GetIndexName().c_str());
+            return DB_FAILED;
+          }
+          LogicReturn = LogicConditions(ConditionRoot, &SelectContext, thisRow, __Ti->GetSchema());
+          if (LogicReturn != DB_SUCCESS) {
+            printf("Failed to analyze logic conditions.\n");
+            return DB_FAILED;
+          }
+
+          if (SelectContext.condition_) {
+            // Select this row:
+            ++SelectedRow;
+            printf("|");
+            // Print columns
+            for (auto i : SelectIndexes) {
+              printf(" %s |",
+                     CStringComplement(
+                         (thisRow.GetField(i)->IsNull()) ? "(null)" : thisRow.GetField(i)->GetData(),
+                         DISPLAY_COLUMN_WIDTH));
+            }
+            printf("\n");
+          }
+        }
+      }
         break;
-      case 8:
-        __IndexInfo->GetBTreeIndex8()->GetBeginIterator();
+      case 8: {
+
+        IndexInfo::INDEX_KEY_TYPE8 BeginIndexKey, EndIndexKey;
+        if (!(BeginID == INVALID_ROWID)) {
+          Row BeginIndexRow = Row(BeginFields);
+          BeginIndexKey.SerializeFromKey(BeginIndexRow, __IndexInfo->GetIndexKeySchema());
+        }
+        if (!(EndID == INVALID_ROWID)) {
+          Row EndIndexRow = Row(EndFields);
+          EndIndexKey.SerializeFromKey(EndIndexRow, __IndexInfo->GetIndexKeySchema());
+        }
+        auto CurrentIndexIterator = (BeginID == INVALID_ROWID)
+                                        ? __IndexInfo->GetBTreeIndex8()->GetBeginIterator()
+                                        : __IndexInfo->GetBTreeIndex8()->GetBeginIterator(BeginIndexKey);
+        if (!BoundaryCovered && !(BeginID == INVALID_ROWID)) CurrentIndexIterator++;
+        auto IndexEnd = (EndID == INVALID_ROWID) ? __IndexInfo->GetBTreeIndex8()->GetEndIterator()
+                                                 : __IndexInfo->GetBTreeIndex8()->GetBeginIterator(EndIndexKey);
+        if (BoundaryCovered && !(EndID == INVALID_ROWID)) IndexEnd++;
+
+        // Main Loop
+        bool GetReturn;
+        for (; CurrentIndexIterator != IndexEnd; ++CurrentIndexIterator) {
+          ExecuteContext SelectContext;
+          Row thisRow = Row((*CurrentIndexIterator).second);
+          GetReturn = __Ti->GetTableHeap()->GetTuple(&thisRow, nullptr);
+          if (!GetReturn) {
+            printf("Index %s provides wrong RowID when fetching data.\n", __IndexInfo->GetIndexName().c_str());
+            return DB_FAILED;
+          }
+          LogicReturn = LogicConditions(ConditionRoot, &SelectContext, thisRow, __Ti->GetSchema());
+          if (LogicReturn != DB_SUCCESS) {
+            printf("Failed to analyze logic conditions.\n");
+            return DB_FAILED;
+          }
+
+          if (SelectContext.condition_) {
+            // Select this row:
+            ++SelectedRow;
+            printf("|");
+            // Print columns
+            for (auto i : SelectIndexes) {
+              printf(" %s |",
+                     CStringComplement((thisRow.GetField(i)->IsNull()) ? "(null)" : thisRow.GetField(i)->GetData(),
+                                       DISPLAY_COLUMN_WIDTH));
+            }
+            printf("\n");
+          }
+        }
+      }
         break;
-      case 16:
-        __IndexInfo->GetBTreeIndex16()->GetBeginIterator();
+      case 16: {
+
+        IndexInfo::INDEX_KEY_TYPE16 BeginIndexKey, EndIndexKey;
+        if (!(BeginID == INVALID_ROWID)) {
+          Row BeginIndexRow = Row(BeginFields);
+          BeginIndexKey.SerializeFromKey(BeginIndexRow, __IndexInfo->GetIndexKeySchema());
+        }
+        if (!(EndID == INVALID_ROWID)) {
+          Row EndIndexRow = Row(EndFields);
+          EndIndexKey.SerializeFromKey(EndIndexRow, __IndexInfo->GetIndexKeySchema());
+        }
+        auto CurrentIndexIterator = (BeginID == INVALID_ROWID)
+                                        ? __IndexInfo->GetBTreeIndex16()->GetBeginIterator()
+                                        : __IndexInfo->GetBTreeIndex16()->GetBeginIterator(BeginIndexKey);
+        if (!BoundaryCovered && !(BeginID == INVALID_ROWID)) CurrentIndexIterator++;
+        auto IndexEnd = (EndID == INVALID_ROWID) ? __IndexInfo->GetBTreeIndex16()->GetEndIterator()
+                                                 : __IndexInfo->GetBTreeIndex16()->GetBeginIterator(EndIndexKey);
+        if (BoundaryCovered && !(EndID == INVALID_ROWID)) IndexEnd++;
+
+        // Main Loop
+        bool GetReturn;
+        for (; CurrentIndexIterator != IndexEnd; ++CurrentIndexIterator) {
+          ExecuteContext SelectContext;
+          Row thisRow = Row((*CurrentIndexIterator).second);
+          GetReturn = __Ti->GetTableHeap()->GetTuple(&thisRow, nullptr);
+          if (!GetReturn) {
+            printf("Index %s provides wrong RowID when fetching data.\n", __IndexInfo->GetIndexName().c_str());
+            return DB_FAILED;
+          }
+          LogicReturn = LogicConditions(ConditionRoot, &SelectContext, thisRow, __Ti->GetSchema());
+          if (LogicReturn != DB_SUCCESS) {
+            printf("Failed to analyze logic conditions.\n");
+            return DB_FAILED;
+          }
+
+          if (SelectContext.condition_) {
+            // Select this row:
+            ++SelectedRow;
+            printf("|");
+            // Print columns
+            for (auto i : SelectIndexes) {
+              printf(" %s |",
+                     CStringComplement((thisRow.GetField(i)->IsNull()) ? "(null)" : thisRow.GetField(i)->GetData(),
+                                       DISPLAY_COLUMN_WIDTH));
+            }
+            printf("\n");
+          }
+        }
+      }
         break;
-      case 32:
-        __IndexInfo->GetBTreeIndex32()->GetBeginIterator();
+      case 32: {
+
+        IndexInfo::INDEX_KEY_TYPE32 BeginIndexKey, EndIndexKey;
+        if (!(BeginID == INVALID_ROWID)) {
+          Row BeginIndexRow = Row(BeginFields);
+          BeginIndexKey.SerializeFromKey(BeginIndexRow, __IndexInfo->GetIndexKeySchema());
+        }
+        if (!(EndID == INVALID_ROWID)) {
+          Row EndIndexRow = Row(EndFields);
+          EndIndexKey.SerializeFromKey(EndIndexRow, __IndexInfo->GetIndexKeySchema());
+        }
+        auto CurrentIndexIterator = (BeginID == INVALID_ROWID)
+                                        ? __IndexInfo->GetBTreeIndex32()->GetBeginIterator()
+                                        : __IndexInfo->GetBTreeIndex32()->GetBeginIterator(BeginIndexKey);
+        if (!BoundaryCovered && !(BeginID == INVALID_ROWID)) CurrentIndexIterator++;
+        auto IndexEnd = (EndID == INVALID_ROWID) ? __IndexInfo->GetBTreeIndex32()->GetEndIterator()
+                                                 : __IndexInfo->GetBTreeIndex32()->GetBeginIterator(EndIndexKey);
+        if (BoundaryCovered && !(EndID == INVALID_ROWID)) IndexEnd++;
+
+        // Main Loop
+        bool GetReturn;
+        for (; CurrentIndexIterator != IndexEnd; ++CurrentIndexIterator) {
+          ExecuteContext SelectContext;
+          Row thisRow = Row((*CurrentIndexIterator).second);
+          GetReturn = __Ti->GetTableHeap()->GetTuple(&thisRow, nullptr);
+          if (!GetReturn) {
+            printf("Index %s provides wrong RowID when fetching data.\n", __IndexInfo->GetIndexName().c_str());
+            return DB_FAILED;
+          }
+          LogicReturn = LogicConditions(ConditionRoot, &SelectContext, thisRow, __Ti->GetSchema());
+          if (LogicReturn != DB_SUCCESS) {
+            printf("Failed to analyze logic conditions.\n");
+            return DB_FAILED;
+          }
+
+          if (SelectContext.condition_) {
+            // Select this row:
+            ++SelectedRow;
+            printf("|");
+            // Print columns
+            for (auto i : SelectIndexes) {
+              printf(" %s |",
+                     CStringComplement((thisRow.GetField(i)->IsNull()) ? "(null)" : thisRow.GetField(i)->GetData(),
+                                       DISPLAY_COLUMN_WIDTH));
+            }
+            printf("\n");
+          }
+        }
+      }
         break;
-      case 64:
-        __IndexInfo->GetBTreeIndex64()->GetBeginIterator();
+      case 64: {
+
+        IndexInfo::INDEX_KEY_TYPE64 BeginIndexKey, EndIndexKey;
+        if (!(BeginID == INVALID_ROWID)) {
+          Row BeginIndexRow = Row(BeginFields);
+          BeginIndexKey.SerializeFromKey(BeginIndexRow, __IndexInfo->GetIndexKeySchema());
+        }
+        if (!(EndID == INVALID_ROWID)) {
+          Row EndIndexRow = Row(EndFields);
+          EndIndexKey.SerializeFromKey(EndIndexRow, __IndexInfo->GetIndexKeySchema());
+        }
+        auto CurrentIndexIterator = (BeginID == INVALID_ROWID)
+                                        ? __IndexInfo->GetBTreeIndex64()->GetBeginIterator()
+                                        : __IndexInfo->GetBTreeIndex64()->GetBeginIterator(BeginIndexKey);
+        if (!BoundaryCovered && !(BeginID == INVALID_ROWID)) CurrentIndexIterator++;
+        auto IndexEnd = (EndID == INVALID_ROWID) ? __IndexInfo->GetBTreeIndex64()->GetEndIterator()
+                                                 : __IndexInfo->GetBTreeIndex64()->GetBeginIterator(EndIndexKey);
+        if (BoundaryCovered && !(EndID == INVALID_ROWID)) IndexEnd++;
+
+        // Main Loop
+        bool GetReturn;
+        for (; CurrentIndexIterator != IndexEnd; ++CurrentIndexIterator) {
+          ExecuteContext SelectContext;
+          Row thisRow = Row((*CurrentIndexIterator).second);
+          GetReturn = __Ti->GetTableHeap()->GetTuple(&thisRow, nullptr);
+          if (!GetReturn) {
+            printf("Index %s provides wrong RowID when fetching data.\n", __IndexInfo->GetIndexName().c_str());
+            return DB_FAILED;
+          }
+          LogicReturn = LogicConditions(ConditionRoot, &SelectContext, thisRow, __Ti->GetSchema());
+          if (LogicReturn != DB_SUCCESS) {
+            printf("Failed to analyze logic conditions.\n");
+            return DB_FAILED;
+          }
+
+          if (SelectContext.condition_) {
+            // Select this row:
+            ++SelectedRow;
+            printf("|");
+            // Print columns
+            for (auto i : SelectIndexes) {
+              printf(" %s |",
+                     CStringComplement((thisRow.GetField(i)->IsNull()) ? "(null)" : thisRow.GetField(i)->GetData(),
+                                       DISPLAY_COLUMN_WIDTH));
+            }
+            printf("\n");
+          }
+        }
+      }
         break;
-      case 128:
-        __IndexInfo->GetBTreeIndex128()->GetBeginIterator();
+      case 128: {
+
+        IndexInfo::INDEX_KEY_TYPE128 BeginIndexKey, EndIndexKey;
+        if (!(BeginID == INVALID_ROWID)) {
+          Row BeginIndexRow = Row(BeginFields);
+          BeginIndexKey.SerializeFromKey(BeginIndexRow, __IndexInfo->GetIndexKeySchema());
+        }
+        if (!(EndID == INVALID_ROWID)) {
+          Row EndIndexRow = Row(EndFields);
+          EndIndexKey.SerializeFromKey(EndIndexRow, __IndexInfo->GetIndexKeySchema());
+        }
+        auto CurrentIndexIterator = (BeginID == INVALID_ROWID)
+                                        ? __IndexInfo->GetBTreeIndex128()->GetBeginIterator()
+                                        : __IndexInfo->GetBTreeIndex128()->GetBeginIterator(BeginIndexKey);
+        if (!BoundaryCovered && !(BeginID == INVALID_ROWID)) CurrentIndexIterator++;
+        auto IndexEnd = (EndID == INVALID_ROWID) ? __IndexInfo->GetBTreeIndex128()->GetEndIterator()
+                                                 : __IndexInfo->GetBTreeIndex128()->GetBeginIterator(EndIndexKey);
+        if (BoundaryCovered && !(EndID == INVALID_ROWID)) IndexEnd++;
+
+        // Main Loop
+        bool GetReturn;
+        for (; CurrentIndexIterator != IndexEnd; ++CurrentIndexIterator) {
+          ExecuteContext SelectContext;
+          Row thisRow = Row((*CurrentIndexIterator).second);
+          GetReturn = __Ti->GetTableHeap()->GetTuple(&thisRow, nullptr);
+          if (!GetReturn) {
+            printf("Index %s provides wrong RowID when fetching data.\n", __IndexInfo->GetIndexName().c_str());
+            return DB_FAILED;
+          }
+          LogicReturn = LogicConditions(ConditionRoot, &SelectContext, thisRow, __Ti->GetSchema());
+          if (LogicReturn != DB_SUCCESS) {
+            printf("Failed to analyze logic conditions.\n");
+            return DB_FAILED;
+          }
+
+          if (SelectContext.condition_) {
+            // Select this row:
+            ++SelectedRow;
+            printf("|");
+            // Print columns
+            for (auto i : SelectIndexes) {
+              printf(" %s |",
+                     CStringComplement((thisRow.GetField(i)->IsNull()) ? "(null)" : thisRow.GetField(i)->GetData(),
+                                       DISPLAY_COLUMN_WIDTH));
+            }
+            printf("\n");
+          }
+        }
+      }
         break;
       default:
         printf("Unexpected index key size (%u).\n", KeySize);
@@ -874,6 +1193,8 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
     }
 
   }
+
+  auto SelectEnd = std::chrono::steady_clock::now();
   // ============== < SELECT END > ==============
 
   // Print buttom
@@ -881,6 +1202,8 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
   for (uint32_t i = 0; i < SelectColumnNames.size() * (DISPLAY_COLUMN_WIDTH + 3) - 1; ++i) printf("-");
   printf("+\n");
   printf("%u row(s) matched in total.\n", SelectedRow);
+  auto SelectTime = std::chrono::duration_cast<std::chrono::duration<double>>(SelectEnd - SelectBegin);
+  printf("Time cost: %.2f ms.\n", SelectTime.count() * 1000);
 
   return DB_SUCCESS;
 }
@@ -1471,8 +1794,10 @@ dberr_t ExecuteEngine::SelectIterator(pSyntaxNode condition, ExecuteContext *con
 
   } else if (condition->type_ == kNodeConnector) {
 
-    SelectIterator(condition->child_, context, table, index, begin_id, end_id, covered);
-    SelectIterator(condition->child_->next_, context, table, index, begin_id, end_id, covered);
+    if (strcmp(condition->val_, "and") == 0) {
+      SelectIterator(condition->child_, context, table, index, begin_id, end_id, covered);
+      SelectIterator(condition->child_->next_, context, table, index, begin_id, end_id, covered);
+    }
 
   } else if (condition->type_ == kNodeCompareOperator) {
 
