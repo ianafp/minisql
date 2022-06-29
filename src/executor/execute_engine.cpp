@@ -172,7 +172,7 @@ dberr_t ExecuteEngine::ExecuteSaveDatabase(ExecuteContext *context) {
 
   if (ListFile.is_open()) {
     for (auto pa : dbs_) {
-      ListFile << pa.first;
+      ListFile << pa.first << std::endl;
     }
     ListFile.close();
   } else {
@@ -1668,20 +1668,20 @@ dberr_t ExecuteEngine::ExecuteDelete(pSyntaxNode ast, ExecuteContext *context) {
     if (SelectContext.condition_) {
       // Select this row:
       auto __DeletedRow = *CurrentIterator;
-      DelectReturn = __Ti->GetTableHeap()->MarkDelete(CurrentIterator->GetRowId(), nullptr);
-      if (!DelectReturn) {
-        printf("Failed to delete tuple. (RowId = %ld)\n", CurrentIterator->GetRowId().Get());
-        continue;
-      }
- 
       // Delete in indexes
       for (auto __Idx : TableIndexes) {
         IndexColumns.clear();
         IndexColumns = __Idx->GetIndexKeySchema()->GetColumns();
         for (auto __Col : IndexColumns) 
-          __FieldsToDelete.push_back(*( __DeletedRow.GetField(__Col->GetTableInd())));
+          __FieldsToDelete.push_back(Field(*(__DeletedRow.GetField(__Col->GetTableInd()))));
         Row RowToDelete = Row(__FieldsToDelete);
         __Idx->GetIndex()->RemoveEntry(RowToDelete, __DeletedRow.GetRowId(), nullptr);      // You! You can only return SUCCESS too!
+      }
+      // Delete in Table Heap
+      DelectReturn = __Ti->GetTableHeap()->MarkDelete(CurrentIterator->GetRowId(), nullptr);
+      if (!DelectReturn) {
+        printf("Failed to delete tuple. (RowId = %ld)\n", CurrentIterator->GetRowId().Get());
+        continue;
       }
     }
   }
