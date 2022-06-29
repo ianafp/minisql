@@ -5,6 +5,7 @@
 #include "glog/logging.h"
 
 // Width of each column in selected table
+constexpr uint32_t MAX_DISPLAY_ROW = 10;
 constexpr uint32_t DISPLAY_COLUMN_WIDTH = 12;
 
 extern "C" {
@@ -896,15 +897,26 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
           if (SelectContext.condition_) {
             // Select this row:
             ++SelectedRow;
-            printf("|");
-            // Print columns
-            for (auto i : SelectIndexes) {
-              printf(" %s |",
-                     CStringComplement(
-                         (thisRow.GetField(i)->IsNull()) ? "(null)" : thisRow.GetField(i)->GetData(),
-                         DISPLAY_COLUMN_WIDTH));
+            if (SelectedRow <= MAX_DISPLAY_ROW) {
+              // Print columns
+              printf("|");
+              for (auto i : SelectIndexes) {
+                printf(" %s |",
+                       CStringComplement((thisRow.GetField(i)->IsNull()) ? "(null)" : thisRow.GetField(i)->GetData(),
+                                         DISPLAY_COLUMN_WIDTH));
+              }
+              printf("\n");
+            } else if (SelectedRow == MAX_DISPLAY_ROW + 1) {
+              printf("|");
+              for (uint32_t i = 0; i < SelectColumnNames.size(); ++i) {
+                printf(" ");
+                for (uint32_t j = 0; j < DISPLAY_COLUMN_WIDTH; ++j) printf(j % 4 == 3 ? " " : ".");
+                printf(" |");
+              }
+              printf("\n");
+            } else {
+              // Do nothing
             }
-            printf("\n");
           }
         }
       }
@@ -947,14 +959,26 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
           if (SelectContext.condition_) {
             // Select this row:
             ++SelectedRow;
-            printf("|");
-            // Print columns
-            for (auto i : SelectIndexes) {
-              printf(" %s |",
-                     CStringComplement((thisRow.GetField(i)->IsNull()) ? "(null)" : thisRow.GetField(i)->GetData(),
-                                       DISPLAY_COLUMN_WIDTH));
+            if (SelectedRow <= MAX_DISPLAY_ROW) {
+              // Print columns
+              printf("|");
+              for (auto i : SelectIndexes) {
+                printf(" %s |",
+                       CStringComplement((thisRow.GetField(i)->IsNull()) ? "(null)" : thisRow.GetField(i)->GetData(),
+                                         DISPLAY_COLUMN_WIDTH));
+              }
+              printf("\n");
+            } else if (SelectedRow == MAX_DISPLAY_ROW + 1) {
+              printf("|");
+              for (uint32_t i = 0; i < SelectColumnNames.size(); ++i) {
+                printf(" ");
+                for (uint32_t j = 0; j < DISPLAY_COLUMN_WIDTH; ++j) printf(j % 4 == 3 ? " " : ".");
+                printf(" |");
+              }
+              printf("\n");
+            } else {
+              // Do nothing
             }
-            printf("\n");
           }
         }
       }
@@ -997,14 +1021,26 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
           if (SelectContext.condition_) {
             // Select this row:
             ++SelectedRow;
-            printf("|");
-            // Print columns
-            for (auto i : SelectIndexes) {
-              printf(" %s |",
-                     CStringComplement((thisRow.GetField(i)->IsNull()) ? "(null)" : thisRow.GetField(i)->GetData(),
-                                       DISPLAY_COLUMN_WIDTH));
+            if (SelectedRow <= MAX_DISPLAY_ROW) {
+              // Print columns
+              printf("|");
+              for (auto i : SelectIndexes) {
+                printf(" %s |",
+                       CStringComplement((thisRow.GetField(i)->IsNull()) ? "(null)" : thisRow.GetField(i)->GetData(),
+                                         DISPLAY_COLUMN_WIDTH));
+              }
+              printf("\n");
+            } else if (SelectedRow == MAX_DISPLAY_ROW + 1) {
+              printf("|");
+              for (uint32_t i = 0; i < SelectColumnNames.size(); ++i) {
+                printf(" ");
+                for (uint32_t j = 0; j < DISPLAY_COLUMN_WIDTH; ++j) printf(j % 4 == 3 ? " " : ".");
+                printf(" |");
+              }
+              printf("\n");
+            } else {
+              // Do nothing
             }
-            printf("\n");
           }
         }
       }
@@ -1047,14 +1083,26 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
           if (SelectContext.condition_) {
             // Select this row:
             ++SelectedRow;
-            printf("|");
-            // Print columns
-            for (auto i : SelectIndexes) {
-              printf(" %s |",
-                     CStringComplement((thisRow.GetField(i)->IsNull()) ? "(null)" : thisRow.GetField(i)->GetData(),
-                                       DISPLAY_COLUMN_WIDTH));
+            if (SelectedRow <= MAX_DISPLAY_ROW) {
+              // Print columns
+              printf("|");
+              for (auto i : SelectIndexes) {
+                printf(" %s |",
+                       CStringComplement((thisRow.GetField(i)->IsNull()) ? "(null)" : thisRow.GetField(i)->GetData(),
+                                         DISPLAY_COLUMN_WIDTH));
+              }
+              printf("\n");
+            } else if (SelectedRow == MAX_DISPLAY_ROW + 1) {
+              printf("|");
+              for (uint32_t i = 0; i < SelectColumnNames.size(); ++i) {
+                printf(" ");
+                for (uint32_t j = 0; j < DISPLAY_COLUMN_WIDTH; ++j) printf(j % 4 == 3 ? " " : ".");
+                printf(" |");
+              }
+              printf("\n");
+            } else {
+              // Do nothing
             }
-            printf("\n");
           }
         }
       }
@@ -1097,14 +1145,26 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
           if (SelectContext.condition_) {
             // Select this row:
             ++SelectedRow;
-            printf("|");
-            // Print columns
-            for (auto i : SelectIndexes) {
-              printf(" %s |",
-                     CStringComplement((thisRow.GetField(i)->IsNull()) ? "(null)" : thisRow.GetField(i)->GetData(),
-                                       DISPLAY_COLUMN_WIDTH));
+            if (SelectedRow <= MAX_DISPLAY_ROW) {
+              // Print columns
+              printf("|");
+              for (auto i : SelectIndexes) {
+                printf(" %s |",
+                       CStringComplement((thisRow.GetField(i)->IsNull()) ? "(null)" : thisRow.GetField(i)->GetData(),
+                                         DISPLAY_COLUMN_WIDTH));
+              }
+              printf("\n");
+            } else if (SelectedRow == MAX_DISPLAY_ROW + 1) {
+              printf("|");
+              for (uint32_t i = 0; i < SelectColumnNames.size(); ++i) {
+                printf(" ");
+                for (uint32_t j = 0; j < DISPLAY_COLUMN_WIDTH; ++j) printf(j % 4 == 3 ? " " : ".");
+                printf(" |");
+              }
+              printf("\n");
+            } else {
+              // Do nothing
             }
-            printf("\n");
           }
         }
       }
@@ -1147,14 +1207,26 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
           if (SelectContext.condition_) {
             // Select this row:
             ++SelectedRow;
-            printf("|");
-            // Print columns
-            for (auto i : SelectIndexes) {
-              printf(" %s |",
-                     CStringComplement((thisRow.GetField(i)->IsNull()) ? "(null)" : thisRow.GetField(i)->GetData(),
-                                       DISPLAY_COLUMN_WIDTH));
+            if (SelectedRow <= MAX_DISPLAY_ROW) {
+              // Print columns
+              printf("|");
+              for (auto i : SelectIndexes) {
+                printf(" %s |",
+                       CStringComplement((thisRow.GetField(i)->IsNull()) ? "(null)" : thisRow.GetField(i)->GetData(),
+                                         DISPLAY_COLUMN_WIDTH));
+              }
+              printf("\n");
+            } else if (SelectedRow == MAX_DISPLAY_ROW + 1) {
+              printf("|");
+              for (uint32_t i = 0; i < SelectColumnNames.size(); ++i) {
+                printf(" ");
+                for (uint32_t j = 0; j < DISPLAY_COLUMN_WIDTH; ++j) printf(j % 4 == 3 ? " " : ".");
+                printf(" |");
+              }
+              printf("\n");
+            } else {
+              // Do nothing
             }
-            printf("\n");
           }
         }
       }
@@ -1180,15 +1252,27 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
       if (SelectContext.condition_) {
         // Select this row:
         ++SelectedRow;
-        printf("|");
-        // Print columns
-        for (auto i : SelectIndexes) {
-          printf(" %s |",
-            CStringComplement(
-              (CurrentIterator->GetField(i)->IsNull()) ? "(null)" : CurrentIterator->GetField(i)->GetData(),
-              DISPLAY_COLUMN_WIDTH));
+        if (SelectedRow <= MAX_DISPLAY_ROW) {
+          // Print columns
+          printf("|");
+          for (auto i : SelectIndexes) {
+            printf(" %s |",
+                   CStringComplement(
+                       (CurrentIterator->GetField(i)->IsNull()) ? "(null)" : CurrentIterator->GetField(i)->GetData(),
+                       DISPLAY_COLUMN_WIDTH));
+          }
+          printf("\n");
+        } else if (SelectedRow == MAX_DISPLAY_ROW + 1) {
+          printf("|");
+          for (uint32_t i = 0; i < SelectColumnNames.size(); ++i) {
+            printf(" ");
+            for (uint32_t j = 0; j < DISPLAY_COLUMN_WIDTH; ++j) printf(j % 4 == 3 ? " " : ".");
+            printf(" |");
+          }
+          printf("\n");
+        } else {
+          // Do nothing
         }
-        printf("\n");
       }
     }
 
