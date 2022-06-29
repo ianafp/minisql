@@ -17,7 +17,7 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::Init(page_id_t page_id, page_id_t parent_id, in
   this->SetPageId(page_id);
   this->SetParentPageId(parent_id);
   // this->SetMaxSize(LEAF_PAGE_SIZE);
-   this->SetMaxSize(4);
+   this->SetMaxSize(LEAF_PAGE_SIZE);
   this->SetSize(0);
   this->SetPageType(IndexPageType::LEAF_PAGE);
   this->SetNextPageId(INVALID_PAGE_ID);

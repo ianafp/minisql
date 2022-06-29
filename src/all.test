@@ -1,0 +1,9 @@
+execfile "1.test";
+execfile "2.test";
+execfile "3.test";
+execfile "4.test";
+execfile "5.test";
+execfile "6.test";
+execfile "7.test";
+execfile "8.test";
+quit;

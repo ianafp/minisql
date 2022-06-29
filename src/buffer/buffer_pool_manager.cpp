@@ -36,7 +36,10 @@ Page *BufferPoolManager::FetchPage(page_id_t page_id) {
     if (free_list_.empty()) {
       // need to replace a page
 
-      if (!replacer_->Victim(&victim)) return nullptr;
+      if (!replacer_->Victim(&victim)) {
+        assert(false);
+        return nullptr;
+      }
       if (pages_[victim].IsDirty()) {
         // dirty page, write back
         disk_manager_->WritePage(pages_[victim].page_id_, pages_[victim].data_);

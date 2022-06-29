@@ -1671,6 +1671,7 @@ dberr_t ExecuteEngine::ExecuteDelete(pSyntaxNode ast, ExecuteContext *context) {
       // Delete in indexes
       for (auto __Idx : TableIndexes) {
         IndexColumns.clear();
+        __FieldsToDelete.clear();
         IndexColumns = __Idx->GetIndexKeySchema()->GetColumns();
         for (auto __Col : IndexColumns) 
           __FieldsToDelete.push_back(Field(*(__DeletedRow.GetField(__Col->GetTableInd()))));

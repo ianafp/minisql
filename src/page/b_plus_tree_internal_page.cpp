@@ -16,7 +16,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Init(page_id_t page_id, page_id_t parent_id
   this->SetPageId(page_id);
   this->SetParentPageId(parent_id);
   // this->SetMaxSize(INTERNAL_PAGE_SIZE);
-   this->SetMaxSize(4);
+   this->SetMaxSize(INTERNAL_PAGE_SIZE);
   this->SetSize(0);
   this->SetPageType(IndexPageType::INTERNAL_PAGE);
   //this->page_type_ = IndexPageType::INTERNAL_PAGE;
@@ -132,6 +132,7 @@ INDEX_TEMPLATE_ARGUMENTS
 int B_PLUS_TREE_INTERNAL_PAGE_TYPE::InsertNodeAfter(const page_id_t &old_value, const KeyType &new_key,
 const page_id_t &new_value) {
 int i;
+assert(new_value>0);
 int find_index = ValueIndex(old_value);
 for (i = this->GetSize(); i > find_index-1; --i) {
   key_[i] = key_[i-1];
