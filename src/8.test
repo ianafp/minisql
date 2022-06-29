@@ -1,0 +1,8 @@
+delete from account where balance = 103.14;
+select * from account where balance = 103.14;
+
+delete from account;
+select * from account;
+
+drop table account;
+show tables;

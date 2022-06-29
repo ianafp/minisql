@@ -5,7 +5,7 @@
 #include "glog/logging.h"
 
 // Width of each column in selected table
-constexpr uint32_t MAX_DISPLAY_ROW = 10;
+constexpr uint32_t MAX_DISPLAY_ROW = 12;
 constexpr uint32_t DISPLAY_COLUMN_WIDTH = 12;
 
 extern "C" {
@@ -463,16 +463,19 @@ dberr_t ExecuteEngine::ExecuteCreateTable(pSyntaxNode ast, ExecuteContext *conte
         printf("Failed to create index for unique key %s.\n", __Col.c_str());
       }
     }
-    std::vector<std::string> PrimaryIndexColumn;
-    for (auto __Col : PrimaryKeyList)
-      PrimaryIndexColumn.push_back(__Col);
-    if (PrimaryIndexColumn.size() > 0) {
+    if (PrimaryKeyList.size() > 0) {
       CreateReturn = dbs_[current_db_]->catalog_mgr_->CreateIndex(
-          NewTableIdentifier, "_" + NewTableIdentifier + "_Index_Primary", PrimaryIndexColumn, nullptr, __IndexInfo);
+          NewTableIdentifier, "_" + NewTableIdentifier + "_Index_Primary", PrimaryKeyList, nullptr, __IndexInfo);
       if (CreateReturn != DB_SUCCESS) {
         printf("Failed to create index for primary keys.\n");
       }
     }
+
+    printf("\nUnique Key:");
+    for (auto __S : UniqueKeyList) printf(" %s", __S.c_str());
+    printf("\nPrimary Key:");
+    for (auto __S : PrimaryKeyList) printf(" %s", __S.c_str());
+    printf("\n");
 
   }
   else {
@@ -807,6 +810,22 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
   for (uint32_t i = 0; i < SelectColumnNames.size() * (DISPLAY_COLUMN_WIDTH + 3) - 1; ++i) printf("-");
   printf("+\n");
 
+  FILE *ResultFile;
+  ResultFile = fopen("SelectOutput.log", "w");
+  if (ResultFile == nullptr) {
+    printf("Failed to open select log file.\n");
+    return DB_FAILED;
+  }
+  // Print title to file
+  fprintf(ResultFile, "+");
+  for (uint32_t i = 0; i < SelectColumnNames.size() * (DISPLAY_COLUMN_WIDTH + 3) - 1; ++i) fprintf(ResultFile, "-");
+  fprintf(ResultFile, "+\n|");
+  for (auto __Str : SelectColumnNames)
+    fprintf(ResultFile, " %s |", CStringComplement(__Str.c_str(), DISPLAY_COLUMN_WIDTH));
+  fprintf(ResultFile, "\n+");
+  for (uint32_t i = 0; i < SelectColumnNames.size() * (DISPLAY_COLUMN_WIDTH + 3) - 1; ++i) fprintf(ResultFile, "-");
+  fprintf(ResultFile, "+\n");
+
   // ============= < SELECT BEGIN > =============
   auto SelectBegin = std::chrono::steady_clock::now();
 
@@ -906,6 +925,14 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
                                          DISPLAY_COLUMN_WIDTH));
               }
               printf("\n");
+              // Print columns to file
+              fprintf(ResultFile, "|");
+              for (auto i : SelectIndexes) {
+                fprintf(ResultFile, " %s |",
+                       CStringComplement((thisRow.GetField(i)->IsNull()) ? "(null)" : thisRow.GetField(i)->GetData(),
+                                         DISPLAY_COLUMN_WIDTH));
+              }
+              fprintf(ResultFile, "\n");
             } else if (SelectedRow == MAX_DISPLAY_ROW + 1) {
               printf("|");
               for (uint32_t i = 0; i < SelectColumnNames.size(); ++i) {
@@ -914,8 +941,23 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
                 printf(" |");
               }
               printf("\n");
+              // Print columns to file
+              fprintf(ResultFile, "|");
+              for (auto i : SelectIndexes) {
+                fprintf(ResultFile, " %s |",
+                        CStringComplement((thisRow.GetField(i)->IsNull()) ? "(null)" : thisRow.GetField(i)->GetData(),
+                                          DISPLAY_COLUMN_WIDTH));
+              }
+              fprintf(ResultFile, "\n");
             } else {
-              // Do nothing
+              // Print columns to file
+              fprintf(ResultFile, "|");
+              for (auto i : SelectIndexes) {
+                fprintf(ResultFile, " %s |",
+                        CStringComplement((thisRow.GetField(i)->IsNull()) ? "(null)" : thisRow.GetField(i)->GetData(),
+                                          DISPLAY_COLUMN_WIDTH));
+              }
+              fprintf(ResultFile, "\n");
             }
           }
         }
@@ -968,6 +1010,14 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
                                          DISPLAY_COLUMN_WIDTH));
               }
               printf("\n");
+              // Print columns to file
+              fprintf(ResultFile, "|");
+              for (auto i : SelectIndexes) {
+                fprintf(ResultFile, " %s |",
+                        CStringComplement((thisRow.GetField(i)->IsNull()) ? "(null)" : thisRow.GetField(i)->GetData(),
+                                          DISPLAY_COLUMN_WIDTH));
+              }
+              fprintf(ResultFile, "\n");
             } else if (SelectedRow == MAX_DISPLAY_ROW + 1) {
               printf("|");
               for (uint32_t i = 0; i < SelectColumnNames.size(); ++i) {
@@ -976,8 +1026,23 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
                 printf(" |");
               }
               printf("\n");
+              // Print columns to file
+              fprintf(ResultFile, "|");
+              for (auto i : SelectIndexes) {
+                fprintf(ResultFile, " %s |",
+                        CStringComplement((thisRow.GetField(i)->IsNull()) ? "(null)" : thisRow.GetField(i)->GetData(),
+                                          DISPLAY_COLUMN_WIDTH));
+              }
+              fprintf(ResultFile, "\n");
             } else {
-              // Do nothing
+              // Print columns to file
+              fprintf(ResultFile, "|");
+              for (auto i : SelectIndexes) {
+                fprintf(ResultFile, " %s |",
+                        CStringComplement((thisRow.GetField(i)->IsNull()) ? "(null)" : thisRow.GetField(i)->GetData(),
+                                          DISPLAY_COLUMN_WIDTH));
+              }
+              fprintf(ResultFile, "\n");
             }
           }
         }
@@ -1030,6 +1095,14 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
                                          DISPLAY_COLUMN_WIDTH));
               }
               printf("\n");
+              // Print columns to file
+              fprintf(ResultFile, "|");
+              for (auto i : SelectIndexes) {
+                fprintf(ResultFile, " %s |",
+                        CStringComplement((thisRow.GetField(i)->IsNull()) ? "(null)" : thisRow.GetField(i)->GetData(),
+                                          DISPLAY_COLUMN_WIDTH));
+              }
+              fprintf(ResultFile, "\n");
             } else if (SelectedRow == MAX_DISPLAY_ROW + 1) {
               printf("|");
               for (uint32_t i = 0; i < SelectColumnNames.size(); ++i) {
@@ -1038,8 +1111,23 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
                 printf(" |");
               }
               printf("\n");
+              // Print columns to file
+              fprintf(ResultFile, "|");
+              for (auto i : SelectIndexes) {
+                fprintf(ResultFile, " %s |",
+                        CStringComplement((thisRow.GetField(i)->IsNull()) ? "(null)" : thisRow.GetField(i)->GetData(),
+                                          DISPLAY_COLUMN_WIDTH));
+              }
+              fprintf(ResultFile, "\n");
             } else {
-              // Do nothing
+              // Print columns to file
+              fprintf(ResultFile, "|");
+              for (auto i : SelectIndexes) {
+                fprintf(ResultFile, " %s |",
+                        CStringComplement((thisRow.GetField(i)->IsNull()) ? "(null)" : thisRow.GetField(i)->GetData(),
+                                          DISPLAY_COLUMN_WIDTH));
+              }
+              fprintf(ResultFile, "\n");
             }
           }
         }
@@ -1092,6 +1180,14 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
                                          DISPLAY_COLUMN_WIDTH));
               }
               printf("\n");
+              // Print columns to file
+              fprintf(ResultFile, "|");
+              for (auto i : SelectIndexes) {
+                fprintf(ResultFile, " %s |",
+                        CStringComplement((thisRow.GetField(i)->IsNull()) ? "(null)" : thisRow.GetField(i)->GetData(),
+                                          DISPLAY_COLUMN_WIDTH));
+              }
+              fprintf(ResultFile, "\n");
             } else if (SelectedRow == MAX_DISPLAY_ROW + 1) {
               printf("|");
               for (uint32_t i = 0; i < SelectColumnNames.size(); ++i) {
@@ -1100,8 +1196,23 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
                 printf(" |");
               }
               printf("\n");
+              // Print columns to file
+              fprintf(ResultFile, "|");
+              for (auto i : SelectIndexes) {
+                fprintf(ResultFile, " %s |",
+                        CStringComplement((thisRow.GetField(i)->IsNull()) ? "(null)" : thisRow.GetField(i)->GetData(),
+                                          DISPLAY_COLUMN_WIDTH));
+              }
+              fprintf(ResultFile, "\n");
             } else {
-              // Do nothing
+              // Print columns to file
+              fprintf(ResultFile, "|");
+              for (auto i : SelectIndexes) {
+                fprintf(ResultFile, " %s |",
+                        CStringComplement((thisRow.GetField(i)->IsNull()) ? "(null)" : thisRow.GetField(i)->GetData(),
+                                          DISPLAY_COLUMN_WIDTH));
+              }
+              fprintf(ResultFile, "\n");
             }
           }
         }
@@ -1154,6 +1265,14 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
                                          DISPLAY_COLUMN_WIDTH));
               }
               printf("\n");
+              // Print columns to file
+              fprintf(ResultFile, "|");
+              for (auto i : SelectIndexes) {
+                fprintf(ResultFile, " %s |",
+                        CStringComplement((thisRow.GetField(i)->IsNull()) ? "(null)" : thisRow.GetField(i)->GetData(),
+                                          DISPLAY_COLUMN_WIDTH));
+              }
+              fprintf(ResultFile, "\n");
             } else if (SelectedRow == MAX_DISPLAY_ROW + 1) {
               printf("|");
               for (uint32_t i = 0; i < SelectColumnNames.size(); ++i) {
@@ -1162,8 +1281,23 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
                 printf(" |");
               }
               printf("\n");
+              // Print columns to file
+              fprintf(ResultFile, "|");
+              for (auto i : SelectIndexes) {
+                fprintf(ResultFile, " %s |",
+                        CStringComplement((thisRow.GetField(i)->IsNull()) ? "(null)" : thisRow.GetField(i)->GetData(),
+                                          DISPLAY_COLUMN_WIDTH));
+              }
+              fprintf(ResultFile, "\n");
             } else {
-              // Do nothing
+              // Print columns to file
+              fprintf(ResultFile, "|");
+              for (auto i : SelectIndexes) {
+                fprintf(ResultFile, " %s |",
+                        CStringComplement((thisRow.GetField(i)->IsNull()) ? "(null)" : thisRow.GetField(i)->GetData(),
+                                          DISPLAY_COLUMN_WIDTH));
+              }
+              fprintf(ResultFile, "\n");
             }
           }
         }
@@ -1216,6 +1350,14 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
                                          DISPLAY_COLUMN_WIDTH));
               }
               printf("\n");
+              // Print columns to file
+              fprintf(ResultFile, "|");
+              for (auto i : SelectIndexes) {
+                fprintf(ResultFile, " %s |",
+                        CStringComplement((thisRow.GetField(i)->IsNull()) ? "(null)" : thisRow.GetField(i)->GetData(),
+                                          DISPLAY_COLUMN_WIDTH));
+              }
+              fprintf(ResultFile, "\n");
             } else if (SelectedRow == MAX_DISPLAY_ROW + 1) {
               printf("|");
               for (uint32_t i = 0; i < SelectColumnNames.size(); ++i) {
@@ -1224,8 +1366,23 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
                 printf(" |");
               }
               printf("\n");
+              // Print columns to file
+              fprintf(ResultFile, "|");
+              for (auto i : SelectIndexes) {
+                fprintf(ResultFile, " %s |",
+                        CStringComplement((thisRow.GetField(i)->IsNull()) ? "(null)" : thisRow.GetField(i)->GetData(),
+                                          DISPLAY_COLUMN_WIDTH));
+              }
+              fprintf(ResultFile, "\n");
             } else {
-              // Do nothing
+              // Print columns to file
+              fprintf(ResultFile, "|");
+              for (auto i : SelectIndexes) {
+                fprintf(ResultFile, " %s |",
+                        CStringComplement((thisRow.GetField(i)->IsNull()) ? "(null)" : thisRow.GetField(i)->GetData(),
+                                          DISPLAY_COLUMN_WIDTH));
+              }
+              fprintf(ResultFile, "\n");
             }
           }
         }
@@ -1262,6 +1419,15 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
                        DISPLAY_COLUMN_WIDTH));
           }
           printf("\n");
+          // Print columns to file
+          fprintf(ResultFile, "|");
+          for (auto i : SelectIndexes) {
+            fprintf(ResultFile, " %s |",
+                   CStringComplement(
+                       (CurrentIterator->GetField(i)->IsNull()) ? "(null)" : CurrentIterator->GetField(i)->GetData(),
+                       DISPLAY_COLUMN_WIDTH));
+          }
+          fprintf(ResultFile, "\n");
         } else if (SelectedRow == MAX_DISPLAY_ROW + 1) {
           printf("|");
           for (uint32_t i = 0; i < SelectColumnNames.size(); ++i) {
@@ -1270,8 +1436,25 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
             printf(" |");
           }
           printf("\n");
+          // Print columns to file
+          fprintf(ResultFile, "|");
+          for (auto i : SelectIndexes) {
+            fprintf(ResultFile, " %s |",
+                    CStringComplement(
+                        (CurrentIterator->GetField(i)->IsNull()) ? "(null)" : CurrentIterator->GetField(i)->GetData(),
+                        DISPLAY_COLUMN_WIDTH));
+          }
+          fprintf(ResultFile, "\n");
         } else {
-          // Do nothing
+          // Print columns to file
+          fprintf(ResultFile, "|");
+          for (auto i : SelectIndexes) {
+            fprintf(ResultFile, " %s |",
+                    CStringComplement(
+                        (CurrentIterator->GetField(i)->IsNull()) ? "(null)" : CurrentIterator->GetField(i)->GetData(),
+                        DISPLAY_COLUMN_WIDTH));
+          }
+          fprintf(ResultFile, "\n");
         }
       }
     }
@@ -1288,6 +1471,14 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
   printf("%u row(s) matched in total.\n", SelectedRow);
   auto SelectTime = std::chrono::duration_cast<std::chrono::duration<double>>(SelectEnd - SelectBegin);
   printf("Time cost: %.2f ms.\n", SelectTime.count() * 1000);
+  // Print buttom to file
+  fprintf(ResultFile, "+");
+  for (uint32_t i = 0; i < SelectColumnNames.size() * (DISPLAY_COLUMN_WIDTH + 3) - 1; ++i) fprintf(ResultFile, "-");
+  fprintf(ResultFile, "+\n");
+  fprintf(ResultFile, "%u row(s) matched in total.\n", SelectedRow);
+  fprintf(ResultFile, "Time cost: %.2f ms.\n", SelectTime.count() * 1000);
+
+  fclose(ResultFile);
 
   return DB_SUCCESS;
 }
@@ -1422,7 +1613,7 @@ dberr_t ExecuteEngine::ExecuteInsert(pSyntaxNode ast, ExecuteContext *context) {
       __Idx->GetIndex()->InsertEntry(NewIndexRow, row_id, nullptr);
     if (InsertEntryReturn != DB_SUCCESS) {
       printf("Index insert error. You may insert duplicate value into a unique column.\n");
-      __Ti->GetTableHeap()->MarkDelete(row_id, nullptr);
+      __Ti->GetTableHeap()->ApplyDelete(row_id, nullptr);
       return DB_FAILED;
     }
   }
@@ -1655,8 +1846,7 @@ dberr_t ExecuteEngine::ExecuteExecfile(pSyntaxNode ast, ExecuteContext *context)
       i = 0;
       while ((ch = ExecuteFile.get()) != ';') {
         if (ch == EOF) {
-          printf("Unexpected end of execute file.\n");
-          return DB_FAILED;
+          return DB_SUCCESS;
         }
         ExecuteCommand[i++] = ch;
       }

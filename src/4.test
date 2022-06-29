@@ -1,0 +1,6 @@
+select * from account where id <> 12500000;
+select * from account where balance <> 514.35;
+select * from account where name <> "name0";
+select * from account where id = 12505678;
+select * from account where balance = 235.94;
+select * from account where name = "name5678";

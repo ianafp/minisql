@@ -1,0 +1,10 @@
+create index idx01 on account(name);
+select * from account where name = "name4567";
+select * from account where name = "name5678";
+
+delete from account where name = "name4567";
+insert into account values(12504567, "name4567", 417.72);
+drop index idx01;
+
+select * from account where name = "name4567";
+select * from account where name = "name5678";

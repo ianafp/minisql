@@ -1,0 +1,2 @@
+execfile "account00.txt";
+select * from account;

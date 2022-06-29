@@ -1,0 +1,4 @@
+insert into account values(12500000, "nameINVALID", -1);
+select * from account where id = 12500000;
+
+create index idx01 on account(balance);
