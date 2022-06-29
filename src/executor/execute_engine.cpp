@@ -1330,7 +1330,7 @@ dberr_t ExecuteEngine::ExecuteInsert(pSyntaxNode ast, ExecuteContext *context) {
 
         // You cannot insert NULL to not null column
         if (astValue->type_ == kNodeNull && !(TableColumns[ValueCount]->IsNullable())) {
-          printf("Cannot insert NULL into a not nullable column.\n");
+          printf("Cannot insert NULL into a not nullable column!\n");
           return DB_FAILED;
         }
 
@@ -1783,20 +1783,30 @@ dberr_t ExecuteEngine::LogicConditions(pSyntaxNode ast, ExecuteContext *context,
     // Take data
     bool LeftNull = false, RightNull = false;
     std::string LeftValueStr, RightValueStr;
+    TypeId LeftType = kTypeInvalid, RightType = kTypeInvalid;
 
     // Left
     switch (ast->child_->type_) {
-      case kNodeIdentifier:
+      case kNodeIdentifier: {
         uint32_t IdentifierIndex;
-        schema->GetColumnIndex(ast->child_->val_, IdentifierIndex);
+        dberr_t GetColumnReturn = schema->GetColumnIndex(ast->child_->val_, IdentifierIndex);
+        if (GetColumnReturn != DB_SUCCESS) {
+          printf("Column \"%s\" does not exist!\n", ast->child_->val_);
+          return DB_FAILED;
+        }
         if (row.GetField(IdentifierIndex)->IsNull())
           LeftNull = true;
         else
-          LeftValueStr = row.GetField(IdentifierIndex)->GetData();
-        break;
+          LeftValueStr = row.GetField(IdentifierIndex)->GetData(),
+          LeftType = schema->GetColumn(IdentifierIndex)->GetType();
+      } break;
       case kNodeNumber:
+        LeftValueStr = ast->child_->val_;
+        LeftType = kTypeFloat;
+        break;
       case kNodeString:
         LeftValueStr = ast->child_->val_;
+        LeftType = kTypeChar;
         break;
       case kNodeNull:
         LeftNull = true;
@@ -1807,17 +1817,27 @@ dberr_t ExecuteEngine::LogicConditions(pSyntaxNode ast, ExecuteContext *context,
 
     // Right
     switch (ast->child_->next_->type_) {
-      case kNodeIdentifier:
+      case kNodeIdentifier: {
         uint32_t IdentifierIndex;
-        schema->GetColumnIndex(ast->child_->next_->val_, IdentifierIndex);
+        dberr_t GetColumnReturn = schema->GetColumnIndex(ast->child_->next_->val_, IdentifierIndex);
+        if (GetColumnReturn != DB_SUCCESS) {
+          printf("Column \"%s\" does not exist!\n", ast->child_->val_);
+          return DB_FAILED;
+        }
         if (row.GetField(IdentifierIndex)->IsNull())
           RightNull = true;
         else
-          RightValueStr = row.GetField(IdentifierIndex)->GetData();
-        break;
+          RightValueStr = row.GetField(IdentifierIndex)->GetData(),
+          RightType = schema->GetColumn(IdentifierIndex)->GetType();
+        
+      } break;
       case kNodeNumber:
+        RightValueStr = ast->child_->next_->val_;
+        RightType = kTypeFloat;
+        break;
       case kNodeString:
         RightValueStr = ast->child_->next_->val_;
+        RightType = kTypeChar;
         break;
       case kNodeNull:
         RightNull = true;
@@ -1842,9 +1862,17 @@ dberr_t ExecuteEngine::LogicConditions(pSyntaxNode ast, ExecuteContext *context,
       } else if (strcmp(ast->val_, ">") == 0) {
         context->condition_ = (atof(LeftValueStr.c_str()) > atof(RightValueStr.c_str()));
       } else if (strcmp(ast->val_, "<>") == 0 || strcmp(ast->val_, "!=") == 0) {
-        context->condition_ = (strcmp(LeftValueStr.c_str(), RightValueStr.c_str()) != 0);
+        // Check type (number or string)
+        if ((LeftType == kTypeInt || LeftType == kTypeFloat) && (RightType == kTypeInt || RightType == kTypeFloat))
+          context->condition_ = (atof(LeftValueStr.c_str()) != atof(RightValueStr.c_str()));
+        else
+          context->condition_ = (strcmp(LeftValueStr.c_str(), RightValueStr.c_str()) != 0);
       } else if (strcmp(ast->val_, "=") == 0) {
-        context->condition_ = (strcmp(LeftValueStr.c_str(), RightValueStr.c_str()) == 0);
+        // Check type (number or string)
+        if ((LeftType == kTypeInt || LeftType == kTypeFloat) && (RightType == kTypeInt || RightType == kTypeFloat))
+          context->condition_ = (atof(LeftValueStr.c_str()) == atof(RightValueStr.c_str()));
+        else
+          context->condition_ = (strcmp(LeftValueStr.c_str(), RightValueStr.c_str()) == 0);
       } else {
         printf("Unexpected comparison operator.\n");
         context->flag_quit_ = true;
