@@ -132,7 +132,7 @@ bool BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value, 
   // int i;
   int new_page_id;
   BPlusTreePage* btree_page = reinterpret_cast<BPlusTreePage*>(buffer_pool_manager_->FetchPage(root_page_id_));
-  bool is_root_leaf =btree_page->IsLeafPage();
+  bool is_root_leaf = btree_page->IsLeafPage();
   if (is_root_leaf) {
     // leaf page, insert immediately
 
@@ -141,6 +141,7 @@ bool BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value, 
     
     if (root_leaf_page->KeyIndex(key, comparator_) != root_leaf_page->GetSize()) {
       // already exist
+      buffer_pool_manager_->UnpinPage(root_leaf_page->GetPageId());
       return false;
     }
     if (root_leaf_page->Insert(key, value, comparator_) >= root_leaf_page->GetMaxSize()) {
@@ -335,12 +336,12 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
   int child_index;
   while (!temp_internal_ptr->IsLeafPage()) {
     // unpin this page
-    buffer_pool_manager_->UnpinPage(temp_internal_ptr->GetPageId());
+    
     // seek for child
     InternalPage* temp = reinterpret_cast<InternalPage*>(temp_internal_ptr);
     child_index = temp->KeyIndex(key, comparator_);
-
-    temp_internal_ptr = reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE *>(
+    buffer_pool_manager_->UnpinPage(temp_internal_ptr->GetPageId());
+    temp_internal_ptr = reinterpret_cast<BPlusTreePage *>(
         buffer_pool_manager_->FetchPage(temp->ValueAt(child_index))->GetData() );
   }
   // find leaf
@@ -400,8 +401,8 @@ bool BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
     return false;
   }
 
-  B_PLUS_TREE_INTERNAL_PAGE_TYPE *parent_page =
-      reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE *>(buffer_pool_manager_->FetchPage(node->GetParentPageId())->GetData() );
+  InternalPage *parent_page =
+      reinterpret_cast<InternalPage*>(reinterpret_cast<BPlusTreePage*>(buffer_pool_manager_->FetchPage(node->GetParentPageId())->GetData()));
   int index = parent_page->ValueIndex(node->GetPageId());
   N *sibling_page;
 
@@ -462,7 +463,7 @@ bool BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
 INDEX_TEMPLATE_ARGUMENTS
 template <typename N>
 bool BPLUSTREE_TYPE::Coalesce(N *neighbor_node, N *node,
-                              BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *parent, const int &index,
+                              BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator> *parent, const int &index,
                               Transaction *transaction) {
   (node)->MoveAllTo(neighbor_node, (parent)->KeyAt(index), buffer_pool_manager_);
   for (int i = index; i < (parent)->GetSize() - 1; i++) {

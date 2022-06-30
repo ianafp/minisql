@@ -471,12 +471,6 @@ dberr_t ExecuteEngine::ExecuteCreateTable(pSyntaxNode ast, ExecuteContext *conte
       }
     }
 
-    printf("\nUnique Key:");
-    for (auto __S : UniqueKeyList) printf(" %s", __S.c_str());
-    printf("\nPrimary Key:");
-    for (auto __S : PrimaryKeyList) printf(" %s", __S.c_str());
-    printf("\n");
-
   }
   else {
     // Syntax tree isn't organized in correct structure.
@@ -1671,6 +1665,7 @@ dberr_t ExecuteEngine::ExecuteDelete(pSyntaxNode ast, ExecuteContext *context) {
       // Delete in indexes
       for (auto __Idx : TableIndexes) {
         IndexColumns.clear();
+        __FieldsToDelete.clear();
         IndexColumns = __Idx->GetIndexKeySchema()->GetColumns();
         for (auto __Col : IndexColumns) 
           __FieldsToDelete.push_back(Field(*(__DeletedRow.GetField(__Col->GetTableInd()))));
@@ -1844,6 +1839,8 @@ dberr_t ExecuteEngine::ExecuteExecfile(pSyntaxNode ast, ExecuteContext *context)
       // "I think you just copy from main.cpp without doubt."
       // "You are right."
       i = 0;
+      ch = ' ';
+      memset(ExecuteCommand, 0, 1024U);
       while ((ch = ExecuteFile.get()) != ';') {
         if (ch == EOF) {
           return DB_SUCCESS;
@@ -2054,13 +2051,13 @@ dberr_t ExecuteEngine::LogicConditions(pSyntaxNode ast, ExecuteContext *context,
       } else if (strcmp(ast->val_, "<>") == 0 || strcmp(ast->val_, "!=") == 0) {
         // Check type (number or string)
         if ((LeftType == kTypeInt || LeftType == kTypeFloat) && (RightType == kTypeInt || RightType == kTypeFloat))
-          context->condition_ = (atof(LeftValueStr.c_str()) != atof(RightValueStr.c_str()));
+          context->condition_ = (abs(atof(LeftValueStr.c_str()) - atof(RightValueStr.c_str())) >= 1e-4);
         else
           context->condition_ = (strcmp(LeftValueStr.c_str(), RightValueStr.c_str()) != 0);
       } else if (strcmp(ast->val_, "=") == 0) {
         // Check type (number or string)
         if ((LeftType == kTypeInt || LeftType == kTypeFloat) && (RightType == kTypeInt || RightType == kTypeFloat))
-          context->condition_ = (atof(LeftValueStr.c_str()) == atof(RightValueStr.c_str()));
+          context->condition_ = (abs(atof(LeftValueStr.c_str()) - atof(RightValueStr.c_str())) < 1e-4);
         else
           context->condition_ = (strcmp(LeftValueStr.c_str(), RightValueStr.c_str()) == 0);
       } else {
